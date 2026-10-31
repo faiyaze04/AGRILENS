@@ -1,0 +1,7 @@
+# AGRILENS - Core Dependencies
+# Python 3.10 - 3.13 Compatible
+
+pillow>=10.0.0
+numpy>=1.26.0
+onnxruntime>=1.18.0
+opencv-python>=4.8.0

@@ -1,0 +1,31 @@
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Large Datasets & Archives (Excluded to respect GitHub 100MB file limit)
+*.zip
+*.tar.gz
+*.rar
+plant village data set old/
+PlantVillage/
+*.pdf
+
+# Legacy Model Checkpoints (>20MB)
+*.keras
+*.h5
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# System / IDE Files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.ini
+.vscode/
+.idea/
