@@ -86,17 +86,31 @@ def export_to_onnx(model, num_classes, onnx_path, device):
     model.to("cpu")
 
     dummy_input = torch.randn(1, 3, 224, 224, dtype=torch.float32)
-    torch.onnx.export(
-        model,
-        dummy_input,
-        onnx_path,
-        export_params=True,
-        opset_version=17,
-        do_constant_folding=True,
-        input_names=["input"],
-        output_names=["output"],
-        dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
-    )
+    try:
+        torch.onnx.export(
+            model,
+            dummy_input,
+            onnx_path,
+            export_params=True,
+            opset_version=17,
+            do_constant_folding=True,
+            input_names=["input"],
+            output_names=["output"],
+            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+            dynamo=False,
+        )
+    except (TypeError, Exception):
+        torch.onnx.export(
+            model,
+            dummy_input,
+            onnx_path,
+            export_params=True,
+            opset_version=17,
+            do_constant_folding=True,
+            input_names=["input"],
+            output_names=["output"],
+            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+        )
     print(f"[ONNX Export] Successfully saved ONNX model ({os.path.getsize(onnx_path) / (1024*1024):.2f} MB)")
 
 
