@@ -39,6 +39,41 @@ The model diagnoses 21 conditions across 3 primary crops:
 
 ---
 
+## 📁 Repository Structure
+
+```text
+AGRILENS/
+├── MobileV2/                         # MobileNetV2 architecture & training baseline
+│   ├── dataset/PlantVillage/         # 15-class PlantVillage dataset (Pepper, Potato, Tomato)
+│   ├── agri_lens_labels.json         # 15-class label mappings
+│   ├── agri_lens_plant_disease.keras # Trained MobileNetV2 base checkpoint
+│   ├── agri_lens_plant_disease_20epoch.keras # 20-epoch checkpoint (95.78% accuracy)
+│   ├── run_20_agri_lens.py           # Training & fine-tuning pipeline
+│   └── README.md
+│
+├── MobileV4/                         # MobileNetV4 production edge kiosk application
+│   ├── agrilens.onnx                 # MobileNetV4 ONNX model graph
+│   ├── agrilens.onnx.data            # Model weight tensors
+│   ├── labels.txt                    # 21-class labels (Apple, Mango, Tomato)
+│   ├── main.py                       # Touch kiosk GUI application
+│   ├── run_agrilens_py313.bat        # Direct Windows batch launcher
+│   ├── requirements.txt              # Standalone requirements
+│   ├── datasets/                     # Training & reference datasets
+│   │   ├── apple dataset.zip
+│   │   ├── mango dataset.zip
+│   │   ├── tomato dataset.zip
+│   │   └── plant village data set old/
+│   └── README.md
+│
+├── Expiscor 2026.pdf                 # Project research & presentation documentation
+├── waveshare display.pdf             # 7" Waveshare display hardware manual
+├── requirements.txt                  # Workspace-wide dependencies
+├── run_agrilens_py313.bat            # Root launcher (runs MobileV4/main.py)
+└── README.md
+```
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Installation
@@ -51,14 +86,16 @@ cd AGRILENS
 pip install -r requirements.txt
 ```
 
-### 2. Launching the Application
+### 2. Launching the Application (MobileNetV4)
 
-- **Windows:** Double-click `run_agrilens_py313.bat` or run:
+- **Windows:** Double-click `run_agrilens_py313.bat` in the root folder (or inside `MobileV4/`), or run:
   ```bash
+  cd MobileV4
   python main.py
   ```
 - **Raspberry Pi / Linux:**
   ```bash
+  cd MobileV4
   python3 main.py
   ```
 
