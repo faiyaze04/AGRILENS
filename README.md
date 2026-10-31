@@ -46,8 +46,8 @@ The model diagnoses 21 conditions across 3 primary crops:
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/<your-username>/agrilens.git
-cd agrilens
+git clone https://github.com/shreyuPRO/AGRILENS.git
+cd AGRILENS
 pip install -r requirements.txt
 ```
 
