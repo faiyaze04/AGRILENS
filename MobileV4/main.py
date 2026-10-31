@@ -89,8 +89,10 @@ def find_file(filename):
 MODEL_PATH = find_file("agrilens.onnx")
 LABELS_PATH = find_file("labels.txt")
 
-# Set threshold to 30% (under 30% says "NOT SURE", 30%+ identifies disease)
-CONFIDENCE_THRESHOLD = 0.30
+# Calibrated confidence & Out-Of-Distribution (OOD) rejection thresholds
+CONFIDENCE_THRESHOLD = 0.65  # Minimum positive identification threshold (65%)
+OOD_MARGIN_THRESHOLD = 0.30  # Minimum gap between 1st and 2nd class
+OOD_LOGIT_THRESHOLD  = 4.20  # Minimum raw logit activation for supported crops
 
 ADMIN_PASSWORD = "AGRILENS"
 PREVIEW_FPS = 25
@@ -209,6 +211,13 @@ UNSURE_STEPS = [
     "Hold one single leaf flat and fully centered inside the green box.",
     "Make sure lighting is even and there is no harsh direct glare or shadow.",
     "Auto mode is in Beta Production. Tap 'SELECT PLANT' to focus on your crop.",
+]
+
+OOD_STEPS = [
+    "This leaf does not match features of supported crops (Apple, Mango, Tomato).",
+    "Non-target plants (e.g. money plant, ornamental flora, weeds) are outside catalog.",
+    "If diagnosing a supported crop, tap 'SELECT PLANT' to lock your target crop.",
+    "To support this plant species, add it to the dataset and retrain the model.",
 ]
 
 DEFAULT_STEPS = [
@@ -505,7 +514,7 @@ class Classifier:
             time.sleep(0.05)
             n = len(self.labels)
             probs = [1.0 / n] * n
-            return probs, (time.perf_counter() - t0) * 1000
+            return probs, (time.perf_counter() - t0) * 1000, None
 
         # Normalization (MobileNetV4 ImageNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         img = ImageOps.fit(pil_image.convert("RGB"), (self.w, self.h), RESAMPLE)
@@ -525,7 +534,7 @@ class Classifier:
         probs = (exps / np.sum(exps)).tolist()
 
         ms = (time.perf_counter() - t0) * 1000
-        return probs, ms
+        return probs, ms, raw_out
 
 
 # =============================================================================
@@ -1086,16 +1095,29 @@ class AgriLensApp:
             self.capture_btn.config(text="RETAKE", bg=AMBER_WARN, fg=DARK)
 
         if self.classifier:
-            probs, ms = self.classifier.predict(target_img)
+            res = self.classifier.predict(target_img)
+            if len(res) == 3:
+                probs, ms, raw_out = res
+            else:
+                probs, ms = res
+                raw_out = None
             self.last_probs = probs
             self.latency_ms = ms
-            self._render_diagnosis(probs)
+            self._render_diagnosis(probs, raw_out)
             self._update_stats_bar()
 
-    def _render_diagnosis(self, probs):
+    def _render_diagnosis(self, probs, raw_out=None):
         labels = self.classifier.labels
         n = len(labels)
+        raw_probs = list(probs)
         adj = list(probs)
+
+        # Unfiltered raw metrics for Out-Of-Distribution (OOD) validation
+        raw_sorted = sorted(raw_probs, reverse=True)
+        raw_top1 = raw_sorted[0]
+        raw_top2 = raw_sorted[1] if len(raw_sorted) > 1 else 0.0
+        raw_margin = raw_top1 - raw_top2
+        max_logit = float(np.max(raw_out)) if raw_out is not None else 10.0
 
         # Plant filtering
         if self.selected_plant:
@@ -1108,9 +1130,22 @@ class AgriLensApp:
         conf = adj[best]
         crop, cond, healthy = self.parsed[best]
 
-        # 30% THRESHOLD RULE:
-        # Under 30% -> "NOT SURE" (no false disease). 30%+ -> Identifies Disease / Healthy!
-        if conf < self.threshold:
+        # 1. OUT-OF-DISTRIBUTION (OOD) / UNKNOWN PLANT DETECTION:
+        # Rejects random leaves outside the 21-class catalog (e.g. money plant, weeds, non-target plants)
+        is_unknown_plant = (
+            (raw_top1 < self.threshold) or 
+            (raw_margin < OOD_MARGIN_THRESHOLD) or 
+            (max_logit < OOD_LOGIT_THRESHOLD)
+        )
+
+        if is_unknown_plant:
+            status = "UNKNOWN PLANT / OUT OF SCOPE"
+            color = AMBER_WARN
+            plant_txt = "Plant: Unrecognized (Outside Catalog)"
+            disease_txt = "Specimen outside supported scope (Apple, Mango, Tomato)"
+            steps = OOD_STEPS
+            num_color = AMBER_WARN
+        elif conf < self.threshold:
             status = "NOT SURE"
             color = AMBER_WARN
             if self.selected_plant:
@@ -1143,8 +1178,11 @@ class AgriLensApp:
         self.disease_lbl.config(text=disease_txt)
         self.cam_border.config(bg=color)
 
-        # Update Confidence Bar
-        self._draw_bar(conf, color)
+        # Update Confidence Bar (if unknown plant, display the rejection message)
+        if is_unknown_plant:
+            self._draw_bar(raw_top1, color, f"Uncertain Match: {raw_top1 * 100:.1f}% (Rejected as Unknown)")
+        else:
+            self._draw_bar(conf, color)
 
         # Update Steps
         for row, _, _ in self.step_rows:
