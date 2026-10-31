@@ -18,6 +18,7 @@ import queue
 import random
 import threading
 import time
+import webbrowser
 import tkinter as tk
 from collections import deque
 
@@ -927,6 +928,19 @@ class AgriLensApp:
             box, text="Click to scan and connect USB webcam", font=self.f(10), fg=MUTED, bg=PANEL
         )
         self.detect_msg_lbl.pack(pady=(0, px(18)))
+
+        # SEPARATOR
+        tk.Frame(box, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(18)))
+
+        # GITHUB REPOSITORY LINK
+        self.gh_btn = self._button(
+            box, "OPEN GITHUB REPO", GREY_BTN, lambda: webbrowser.open("https://github.com/shreyuPRO/AGRILENS"), width=22, size=12
+        )
+        self.gh_btn.pack(ipady=px(6), pady=(0, px(4)))
+        tk.Label(
+            box, text="shreyuPRO/AGRILENS (Cloud Connected)",
+            font=self.f(10), fg=MUTED, bg=PANEL
+        ).pack(pady=(0, px(16)))
 
         # SEPARATOR
         tk.Frame(box, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(18)))
