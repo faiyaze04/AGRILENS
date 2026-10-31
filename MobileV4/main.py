@@ -1131,8 +1131,10 @@ class AgriLensApp:
         crop, cond, healthy = self.parsed[best]
 
         # 1. OUT-OF-DISTRIBUTION (OOD) / UNKNOWN PLANT DETECTION:
-        # Rejects random leaves outside the 21-class catalog (e.g. money plant, weeds, non-target plants)
+        # Rejects random leaves outside the catalog or when Other_Plant_or_Background fires
+        is_negative_class = ("other" in cond.lower()) or ("background" in cond.lower())
         is_unknown_plant = (
+            is_negative_class or
             (raw_top1 < self.threshold) or 
             (raw_margin < OOD_MARGIN_THRESHOLD) or 
             (max_logit < OOD_LOGIT_THRESHOLD)
