@@ -17,14 +17,38 @@ This directory contains the production-grade AGRILENS kiosk application powered 
 - **`main.py`**: Complete GUI Kiosk application (Tkinter + Pillow + OpenCV + ONNX Runtime).
 - **`agrilens.onnx`**: MobileNetV4 model architecture in ONNX format.
 - **`agrilens.onnx.data`**: Exported ONNX model weight tensors.
-- **`labels.txt`**: 21 crop and disease class labels (3 Apple, 8 Mango, 10 Tomato).
+- **`labels.txt`**: Class labels.
 - **`run_agrilens_py313.bat`**: Windows Python 3.13 one-click launcher.
-- **`requirements.txt`**: Python dependencies.
-- **`datasets/`**: Training and validation datasets:
-  - `apple dataset.zip` (Apple Rust, Apple Scab, Healthy)
-  - `mango dataset.zip` (8 Mango disease/healthy classes)
-  - `tomato dataset.zip` (10 Tomato disease/healthy classes)
-  - `plant village data set old/` (Extracted mango disease reference data)
+- **`consolidate_datasets.py`**: Merges all crop datasets into a unified 27-class folder structure.
+- **`train_mobilenetv4.py`**: PyTorch MobileNetV4 training pipeline script with automated ONNX export.
+- **`Train_AGRILENS_MobileNetV4.ipynb`**: 1-Click Google Colab / Kaggle training notebook (Free T4 GPU, ~15 mins).
+- **`datasets/`**: All consolidated project datasets:
+  - `apple dataset.zip` (Apple: Rust, Scab, Healthy)
+  - `mango dataset.zip` (Mango: 8 disease & healthy classes)
+  - `tomato dataset.zip` (Tomato: 10 disease & healthy classes)
+  - `PlantVillage/` (Pepper: 2 classes, Potato: 3 classes, Tomato: 10 classes)
+  - `plant village data set old/` (Extracted mango reference data)
+
+---
+
+## 🏋️‍♂️ Retraining MobileNetV4 (27 Classes)
+
+### Option 1: 1-Click Google Colab (Recommended — Free GPU, ~15 mins)
+1. Open [Google Colab](https://colab.research.google.com).
+2. Upload and open [`Train_AGRILENS_MobileNetV4.ipynb`](file:///g:/My%20Drive/EXPISCOR%202026/MobileV4/Train_AGRILENS_MobileNetV4.ipynb).
+3. Set runtime to **T4 GPU** (`Runtime -> Change runtime type -> T4 GPU`).
+4. Run all cells (`Runtime -> Run all`).
+5. The notebook will train on your Google Drive datasets, export the new `agrilens.onnx`, and update `labels.txt`.
+
+### Option 2: Local Machine Training
+1. Consolidate all datasets into the unified structure:
+   ```bash
+   python consolidate_datasets.py
+   ```
+2. Run the training script:
+   ```bash
+   python train_mobilenetv4.py --epochs 15 --batch_size 32
+   ```
 
 ---
 
