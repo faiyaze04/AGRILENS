@@ -21,10 +21,11 @@ import threading
 import time
 import webbrowser
 import tkinter as tk
+import tkinter.font as tkFont
 from collections import deque
 
 try:
-    from PIL import Image, ImageOps, ImageTk
+    from PIL import Image, ImageOps, ImageTk, ImageDraw
 except ImportError:
     raise SystemExit(
         "Pillow is missing!\n"
@@ -38,30 +39,35 @@ except ImportError:
     np = None
 
 # =============================================================================
-# 1. COLOR THEME (Fresh Foliage Green + Blue Admin)
+# 1. COLOR THEME (Dark Theme with Green, White & Red Accents)
 # =============================================================================
-# Backgrounds & Panels
-BG = "#0b130e"          # Deep rich forest-dark background
-PANEL = "#13231a"       # Slate-green panel
-CARD = "#1c3326"        # Card / component container
-BORDER = "#254433"      # Subtle separator border
+# Dark Backgrounds
+BG     = "#08100a"       # Obsidian forest dark background
+PANEL  = "#0e1a12"       # Dark foliage slate panel
+CARD   = "#15261a"       # Component card container
+BORDER = "#213d29"       # Crisp dark green border
 
-# Text Colors
-TEXT = "#f0fdf4"        # Crisp clean off-white
-MUTED = "#86a793"       # Soft readable muted green-grey
-DARK = "#051a0e"        # Text on bright green buttons
+# Pure White & Crisp Text
+WHITE  = "#ffffff"       # Crisp pure white
+TEXT   = "#f8fafc"       # Clean off-white
+MUTED  = "#94a3b8"       # Silver slate secondary text
+DARK   = "#041208"       # Dark text on bright white or bright green buttons
 
-# Green Theme Shades
-GREEN_PRIMARY = "#16a34a"   # Lush Forest Emerald Green
-GREEN_ACCENT  = "#22c55e"   # Bright vibrant leaf green (Healthy / Alignment box)
+# Green Theme Shades (Primary / Healthy / Confirm)
+GREEN_PRIMARY = "#16a34a"   # Emerald Lush Green
+GREEN_ACCENT  = "#22c55e"   # Bright vibrant leaf green
 GREEN_GLOW    = "#4ade80"   # Light highlight green
+GREEN_HOVER   = "#15803d"   # Darker green hover
 
-# Actions & Status
-BLUE_ACTION = "#2563eb"     # Dedicated Blue for [ADMIN], [DIAGNOSE], [DETECT WEBCAM]
-BLUE_HOVER  = "#1d4ed8"     # Darker blue
-RED_ALERT   = "#ef4444"     # Disease alert & [CLOSE APPLICATION]
-AMBER_WARN  = "#f59e0b"     # "NOT SURE" / Low confidence (< 30%) / [RETAKE]
-GREY_BTN    = "#4b6354"     # "REVERT" & secondary buttons
+# Red Accents (Disease Alert / Close / Critical)
+RED_ALERT   = "#ef4444"     # Vivid disease warning & [CLOSE APPLICATION]
+RED_HOVER   = "#dc2626"     # Deep red hover
+RED_CARD    = "#2d1212"     # Subtle dark red card background
+
+# Secondary & Status
+AMBER_WARN  = "#f59e0b"     # Out-of-catalog warning & [RETAKE]
+GREY_BTN    = "#283b2f"     # Subtle card buttons
+WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
@@ -568,8 +574,169 @@ class Classifier:
 
 
 # =============================================================================
-# 7. INTERACTIVE TOOLTIP COMPONENT
+# 7. INTERACTIVE UI COMPONENTS (Rounded Buttons & Tooltips)
 # =============================================================================
+class RoundedButton(tk.Canvas):
+    """
+    Anti-aliased pill-shaped rounded button.
+    Renders with 3x supersampled Pillow graphics for smooth curves on dark background.
+    Supports hover, press, disable states and standard config() updates.
+    """
+    _cache = {}
+
+    def __init__(self, parent, text, command, bg_color=GREEN_PRIMARY, fg_color=WHITE,
+                 hover_bg=None, width=None, height=38, radius=None, font=None,
+                 border_color=None, border_width=1, parent_bg=PANEL, state="normal"):
+        self.parent = parent
+        self.text = text
+        self.command = command
+        self.bg_color = bg_color
+        self.fg_color = fg_color
+        self.parent_bg = parent_bg
+        self.state = state
+        self.border_color = border_color
+        self.border_width = border_width
+        self.hover_bg = hover_bg or self._tint(bg_color, 1.15)
+        self.active_bg = self._tint(bg_color, 0.85)
+
+        self.font = font or (FONT, 11, "bold")
+        self.height = max(24, int(height))
+        self.radius = radius if radius is not None else (self.height // 2)
+
+        if width is None:
+            w = self._measure_text_width(text) + 28
+        elif width <= 35:
+            w = max(int(width * 10 + 20), self._measure_text_width(text) + 24)
+        else:
+            w = int(width)
+        self.width = max(32, w)
+
+        super().__init__(parent, width=self.width, height=self.height, bg=parent_bg,
+                         highlightthickness=0, bd=0, cursor="hand2" if state != "disabled" else "arrow")
+
+        self.normal_img = self._get_img(self.bg_color)
+        self.hover_img = self._get_img(self.hover_bg)
+        self.active_img = self._get_img(self.active_bg)
+        self.disabled_img = self._get_img(GREY_BTN)
+
+        img = self.disabled_img if self.state == "disabled" else self.normal_img
+        self.img_item = self.create_image(self.width // 2, self.height // 2, image=img)
+        self.text_item = self.create_text(
+            self.width // 2, self.height // 2, text=self.text,
+            fill=MUTED if self.state == "disabled" else self.fg_color,
+            font=self.font
+        )
+
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<Button-1>", self._on_press)
+        self.bind("<ButtonRelease-1>", self._on_release)
+
+    def _measure_text_width(self, text):
+        try:
+            if isinstance(self.font, tuple):
+                f = tkFont.Font(family=self.font[0], size=self.font[1], weight=self.font[2] if len(self.font) > 2 else "normal")
+            else:
+                f = tkFont.nametofont(self.font)
+            return f.measure(text)
+        except Exception:
+            return len(text) * 9
+
+    def _tint(self, hex_color, factor):
+        try:
+            hex_color = hex_color.lstrip("#")
+            r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            r = min(255, max(0, int(r * factor)))
+            g = min(255, max(0, int(g * factor)))
+            b = min(255, max(0, int(b * factor)))
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except Exception:
+            return hex_color
+
+    def _get_img(self, fill):
+        key = (self.width, self.height, self.radius, fill, self.border_color, self.border_width, self.parent_bg)
+        if key in self._cache:
+            return self._cache[key]
+        scale = 3
+        sw, sh, sr = self.width * scale, self.height * scale, self.radius * scale
+        im = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        d.rounded_rectangle([0, 0, sw - 1, sh - 1], radius=sr, fill=fill,
+                            outline=self.border_color, width=self.border_width * scale if self.border_color else 0)
+        res = im.resize((self.width, self.height), Image.Resampling.LANCZOS)
+        photo = ImageTk.PhotoImage(res)
+        self._cache[key] = photo
+        return photo
+
+    def _on_enter(self, e):
+        if self.state != "disabled":
+            self.itemconfig(self.img_item, image=self.hover_img)
+
+    def _on_leave(self, e):
+        if self.state != "disabled":
+            self.itemconfig(self.img_item, image=self.normal_img)
+
+    def _on_press(self, e):
+        if self.state != "disabled":
+            self.itemconfig(self.img_item, image=self.active_img)
+
+    def _on_release(self, e):
+        if self.state != "disabled":
+            self.itemconfig(self.img_item, image=self.hover_img)
+            if self.command:
+                self.command()
+
+    def config(self, **kwargs):
+        redraw = False
+        if "text" in kwargs:
+            self.text = kwargs.pop("text")
+            self.itemconfig(self.text_item, text=self.text)
+        if "fg" in kwargs:
+            self.fg_color = kwargs.pop("fg")
+            self.itemconfig(self.text_item, fill=self.fg_color)
+        if "bg" in kwargs:
+            self.bg_color = kwargs.pop("bg")
+            self.hover_bg = self._tint(self.bg_color, 1.15)
+            self.active_bg = self._tint(self.bg_color, 0.85)
+            redraw = True
+        if "border" in kwargs:
+            self.border_color = kwargs.pop("border")
+            redraw = True
+        if "state" in kwargs:
+            self.state = kwargs.pop("state")
+            if self.state == "disabled":
+                super().config(cursor="arrow")
+                self.itemconfig(self.img_item, image=self.disabled_img)
+                self.itemconfig(self.text_item, fill=MUTED)
+            else:
+                super().config(cursor="hand2")
+                self.itemconfig(self.img_item, image=self.normal_img)
+                self.itemconfig(self.text_item, fill=self.fg_color)
+        if "command" in kwargs:
+            self.command = kwargs.pop("command")
+        if redraw:
+            self.normal_img = self._get_img(self.bg_color)
+            self.hover_img = self._get_img(self.hover_bg)
+            self.active_img = self._get_img(self.active_bg)
+            self.itemconfig(self.img_item, image=self.normal_img)
+            self.itemconfig(self.text_item, fill=self.fg_color)
+        if kwargs:
+            super().config(**kwargs)
+
+    configure = config
+
+    def cget(self, key):
+        if key == "text":
+            return self.text
+        elif key == "bg":
+            return self.bg_color
+        elif key == "fg":
+            return self.fg_color
+        elif key == "state":
+            return self.state
+        return super().cget(key)
+
+
 class ToolTip:
     """
     Floating glassmorphic tooltip with accent border for mouse-over (i) badges.
@@ -669,6 +836,9 @@ class AgriLensApp:
         self.entered_password = ""
         self.camera = None
         self.classifier = None
+        self.plants = ["Apple", "Mango", "Pepper", "Potato"]
+        self.crops = []
+        self.parsed = []
         self.sliders = {}
         self.slider_badges = {}
 
@@ -710,41 +880,99 @@ class AgriLensApp:
     def f(self, size, bold=False):
         return (FONT, max(8, round(size * self.S)), "bold" if bold else "normal")
 
-    def _button(self, parent, text, bg, cmd, width=None, size=12, fg=None):
+    def _button(self, parent, text, bg, cmd, width=None, height=None, size=11, fg=None, radius=None, border=None, parent_bg=None):
         if fg is None:
-            fg = DARK if bg in (GREEN_PRIMARY, GREEN_ACCENT, GREEN_GLOW) else TEXT
-        b = tk.Button(
-            parent, text=text, font=self.f(size, True),
-            bg=bg, fg=fg, activebackground=TEXT, activeforeground=DARK,
-            relief="flat", bd=0, cursor="hand2", command=cmd
-        )
-        if width:
-            b.config(width=width)
-        return b
+            fg = DARK if bg in (WHITE, GREEN_ACCENT, GREEN_GLOW) else WHITE
+        if height is None:
+            height = self.px(38)
+        if parent_bg is None:
+            try:
+                parent_bg = parent.cget("bg")
+            except Exception:
+                parent_bg = PANEL
 
-    # ---- 1. Top Bar with BLUE [ADMIN] Button ----
+        return RoundedButton(
+            parent, text=text, command=cmd,
+            bg_color=bg, fg_color=fg,
+            width=width, height=height, radius=radius,
+            font=self.f(size, True),
+            border_color=border,
+            parent_bg=parent_bg
+        )
+
+    # ---- 1. Top Bar with Brand, Crop Filter, Admin & Gundecha Academy Logo ----
+    def _build_school_logo(self, parent):
+        px = self.px
+        logo_path = find_file("gundecha_logo.png")
+        if not os.path.exists(logo_path):
+            logo_path = find_file(os.path.join("assets", "gundecha_logo.png"))
+
+        if os.path.exists(logo_path):
+            try:
+                raw_logo = Image.open(logo_path)
+                lh = px(38)
+                aspect = raw_logo.width / max(1, raw_logo.height)
+                lw = max(1, int(lh * aspect))
+                resized = raw_logo.resize((lw, lh), RESAMPLE)
+
+                pad_x, pad_y = px(4), px(2)
+                bw, bh = lw + 2 * pad_x, lh + 2 * pad_y
+                scale = 2
+                badge_im = Image.new("RGBA", (bw * scale, bh * scale), (0, 0, 0, 0))
+                d = ImageDraw.Draw(badge_im)
+                d.rounded_rectangle(
+                    [0, 0, bw * scale - 1, bh * scale - 1],
+                    radius=px(10) * scale,
+                    fill=(255, 255, 255, 245),
+                    outline=(210, 220, 215, 255),
+                    width=scale
+                )
+                badge_im = badge_im.resize((bw, bh), RESAMPLE)
+                badge_im.paste(resized, (pad_x, pad_y), resized)
+
+                self._school_logo_photo = ImageTk.PhotoImage(badge_im)
+                logo_lbl = tk.Label(
+                    parent, image=self._school_logo_photo, bg=PANEL, cursor="hand2", bd=0
+                )
+                logo_lbl.pack(side="right", padx=(px(4), px(12)), pady=px(5))
+                logo_lbl.bind("<Button-1>", lambda e: webbrowser.open("https://www.gundechaedu.org/"))
+                ToolTip(logo_lbl, "Gundecha Education Academy", "Official Partner Institution\nClick to open official portal: gundechaedu.org", font_family=FONT)
+                return
+            except Exception as e:
+                print("Notice: logo load error:", e)
+
+        school_box = tk.Frame(parent, bg=WHITE, padx=px(6), pady=px(2))
+        school_box.pack(side="right", padx=(px(4), px(12)), pady=px(8))
+        tk.Label(school_box, text="GEA", font=self.f(11, True), fg=DARK, bg=WHITE).pack()
+
     def _build_top_bar(self):
         px = self.px
         top = tk.Frame(self.root, bg=PANEL, height=self.TOP_H)
         top.pack(side="top", fill="x")
         top.pack_propagate(False)
 
-        # Plant Filter Button (Auto - Beta)
-        self.plant_btn = self._button(top, "SELECT PLANT (AUTO - BETA)", CARD, self.open_plant_picker, size=11)
-        self.plant_btn.pack(side="left", padx=px(10), pady=px(7), fill="y")
+        # Crop Filter Button (Auto - Beta)
+        self.plant_btn = self._button(
+            top, "SELECT CROP (AUTO)", CARD, self.open_plant_picker,
+            height=px(38), size=10, fg=WHITE, border=BORDER, parent_bg=PANEL
+        )
+        self.plant_btn.pack(side="left", padx=(px(10), px(6)), pady=px(7))
 
         # Header Title
         title_box = tk.Frame(top, bg=PANEL)
-        title_box.pack(side="left", padx=px(12), fill="y")
-        tk.Label(title_box, text="AGRILENS", font=self.f(15, True), fg=GREEN_ACCENT, bg=PANEL).pack(anchor="w")
-        tk.Label(title_box, text="AI Plant Disease Diagnosis Kiosk", font=self.f(8), fg=MUTED, bg=PANEL).pack(anchor="w")
+        title_box.pack(side="left", padx=px(10), fill="y")
+        tk.Label(title_box, text="AGRILENS", font=self.f(15, True), fg=WHITE, bg=PANEL).pack(anchor="w")
+        tk.Label(title_box, text="AI Agricultural Health Diagnostics", font=self.f(8, True), fg=GREEN_ACCENT, bg=PANEL).pack(anchor="w")
 
-        # BLUE ADMIN BUTTON
+        # Far Right: Official Gundecha Education Academy Logo
+        self._build_school_logo(top)
+
+        # ADMIN BUTTON (Right beside the school badge)
         self.admin_btn = self._button(
-            top, "ADMIN", BLUE_ACTION, self.open_password_screen,
-            width=8, size=11, fg=TEXT
+            top, "ADMIN", CARD, self.open_password_screen,
+            width=px(88), height=px(38), size=10, fg=WHITE, border=BORDER, parent_bg=PANEL
         )
-        self.admin_btn.pack(side="right", padx=px(10), pady=px(7), fill="y")
+        self.admin_btn.pack(side="right", padx=(px(4), px(8)), pady=px(7))
 
     # ---- 2. Split Screen Body ----
     def _build_body(self):
@@ -755,19 +983,19 @@ class AgriLensApp:
         body = tk.Frame(self.root, bg=BG)
         body.pack(side="top", fill="both", expand=True)
 
-        # LEFT SIDE - Clean Camera Feed + Quality AI Bar + Separate Buttons
+        # LEFT SIDE - Camera Feed + Quality AI Bar + Action Buttons
         left = tk.Frame(body, bg=BG, width=self.W // 2, height=body_h)
         left.pack(side="left")
         left.pack_propagate(False)
 
-        btn_area_h = px(78)
+        btn_area_h = px(68)
         self.CAM_W = self.W // 2 - 2 * pad - 4
-        self.CAM_H = body_h - btn_area_h - 2 * pad - 4
+        self.CAM_H = body_h - btn_area_h - 2 * pad - px(34)
 
         self.cam_border = tk.Frame(left, bg=CARD, padx=2, pady=2)
         self.cam_border.pack(side="top", pady=(pad, px(4)))
 
-        # Clean Camera Canvas (NO "LIVE WEBCAM" BADGE)
+        # Clean Camera Canvas with subtle targeting frame
         self.canvas = tk.Canvas(self.cam_border, width=self.CAM_W, height=self.CAM_H,
                                 bg="#000000", highlightthickness=0)
         self.canvas.pack()
@@ -776,12 +1004,18 @@ class AgriLensApp:
         cw, ch = self.CAM_W, self.CAM_H
         self.img_item = self.canvas.create_image(cw // 2, ch // 2, anchor="center")
 
-        # Leaf Alignment Box
+        # Leaf Alignment Targeting Box
         side = int(min(cw, ch) * 0.82)
         x0, y0 = (cw - side) // 2, (ch - side) // 2
         self.guide = self.canvas.create_rectangle(
             x0, y0, x0 + side, y0 + side,
             outline=GREEN_ACCENT, width=px(2), dash=(8, 5)
+        )
+
+        # Live webcam indicator overlay
+        self.live_badge = self.canvas.create_text(
+            px(58), px(16), fill=GREEN_ACCENT, font=self.f(9, True),
+            text="LIVE WEBCAM"
         )
 
         self.msg_txt = self.canvas.create_text(
@@ -790,7 +1024,7 @@ class AgriLensApp:
         )
 
         # IMAGE QUALITY AI STATUS BAR (Directly below canvas)
-        quality_frame = tk.Frame(left, bg=PANEL, padx=px(6), pady=px(3))
+        quality_frame = tk.Frame(left, bg=PANEL, padx=px(8), pady=px(3))
         quality_frame.pack(side="top", fill="x", padx=pad + 2, pady=(0, px(6)))
 
         self.quality_lbl = tk.Label(
@@ -799,21 +1033,26 @@ class AgriLensApp:
         )
         self.quality_lbl.pack(fill="x")
 
-        # SEPARATE BUTTONS BAR (Side-by-Side: [CAPTURE/RETAKE] and [DIAGNOSE])
+        # SEPARATE ACTION BUTTONS BAR (Side-by-Side: [CAPTURE LEAF] and [DIAGNOSE LEAF])
         btn_box = tk.Frame(left, bg=BG)
         btn_box.pack(side="top", fill="x", padx=pad + 2, pady=(0, pad))
 
+        half_btn_w = self.CAM_W // 2 - px(6)
+        btn_h = px(44)
+
         # Button 1: CAPTURE (swaps to RETAKE when frozen)
         self.capture_btn = self._button(
-            btn_box, "CAPTURE", GREEN_PRIMARY, self.handle_capture_or_retake, size=13
+            btn_box, "CAPTURE LEAF", GREEN_PRIMARY, self.handle_capture_or_retake,
+            width=half_btn_w, height=btn_h, size=11, fg=WHITE, radius=px(22), parent_bg=BG
         )
-        self.capture_btn.pack(side="left", fill="both", expand=True, padx=(0, px(4)), ipady=px(6))
+        self.capture_btn.pack(side="left", padx=(0, px(4)))
 
         # Button 2: DIAGNOSE (Runs AI Inference)
         self.diagnose_btn = self._button(
-            btn_box, "DIAGNOSE", BLUE_ACTION, self.handle_diagnose, size=13
+            btn_box, "DIAGNOSE LEAF", CARD, self.handle_diagnose,
+            width=half_btn_w, height=btn_h, size=11, fg=WHITE, border=BORDER, radius=px(22), parent_bg=BG
         )
-        self.diagnose_btn.pack(side="left", fill="both", expand=True, padx=(px(4), 0), ipady=px(6))
+        self.diagnose_btn.pack(side="left", padx=(px(4), 0))
 
         # RIGHT SIDE - Farmer Diagnosis & Recommendations
         right = tk.Frame(body, bg=PANEL)
@@ -821,21 +1060,24 @@ class AgriLensApp:
         rp = px(14)
         wrap = self.W - self.W // 2 - pad - 2 * rp - px(6)
 
+        self.banner_frame = tk.Frame(right, bg=GREY_BTN, padx=px(8), pady=px(6))
+        self.banner_frame.pack(fill="x")
+
         self.banner = tk.Label(
-            right, text="READY", font=self.f(18, True),
-            bg=GREY_BTN, fg=TEXT, pady=px(5)
+            self.banner_frame, text="READY — AIM LEAF AT CAMERA", font=self.f(15, True),
+            bg=GREY_BTN, fg=WHITE, pady=px(2)
         )
         self.banner.pack(fill="x")
 
         info = tk.Frame(right, bg=PANEL)
         info.pack(fill="x", padx=rp, pady=(px(8), 0))
 
-        self.plant_lbl = tk.Label(info, text="Mode: Auto (Beta Production)", font=self.f(11), fg=MUTED, bg=PANEL, anchor="w")
+        self.plant_lbl = tk.Label(info, text="Mode: Auto-Detect (Beta Production)", font=self.f(10, True), fg=GREEN_ACCENT, bg=PANEL, anchor="w")
         self.plant_lbl.pack(fill="x")
 
         self.disease_lbl = tk.Label(
-            info, text="Aim leaf at box -> Tap CAPTURE -> Tap DIAGNOSE",
-            font=self.f(14, True), fg=TEXT, bg=PANEL, anchor="w",
+            info, text="Aim leaf inside box -> Tap CAPTURE -> Tap DIAGNOSE",
+            font=self.f(14, True), fg=WHITE, bg=PANEL, anchor="w",
             justify="left", wraplength=wrap
         )
         self.disease_lbl.pack(fill="x")
@@ -848,8 +1090,8 @@ class AgriLensApp:
         tk.Frame(right, bg=BORDER, height=max(1, px(1))).pack(fill="x", padx=rp, pady=(px(10), px(4)))
 
         tk.Label(
-            right, text="WHAT YOU SHOULD DO", font=self.f(11, True),
-            fg=GREEN_ACCENT, bg=PANEL, anchor="w"
+            right, text="RECOMMENDED FARMER ACTIONS", font=self.f(10, True),
+            fg=WHITE, bg=PANEL, anchor="w"
         ).pack(fill="x", padx=rp, pady=(0, px(4)))
 
         # Bottom Hardware / Latency Strip
@@ -870,11 +1112,11 @@ class AgriLensApp:
             row = tk.Frame(steps_box, bg=PANEL)
             num = tk.Label(
                 row, text=str(i + 1), font=self.f(10, True),
-                bg=GREEN_ACCENT, fg=DARK, width=2
+                bg=GREEN_PRIMARY, fg=WHITE, width=2
             )
             num.pack(side="left", anchor="n", padx=(0, px(8)), pady=(px(1), 0))
             txt = tk.Label(
-                row, text="", font=self.f(10), fg=TEXT, bg=PANEL,
+                row, text="", font=self.f(10), fg=WHITE, bg=PANEL,
                 anchor="w", justify="left", wraplength=wrap - px(36)
             )
             txt.pack(side="left", fill="x", expand=True)
@@ -886,14 +1128,14 @@ class AgriLensApp:
     def _build_plant_picker(self):
         px = self.px
         self.picker = tk.Frame(self.root, bg=BG)
-        tk.Label(self.picker, text="SELECT PLANT", font=self.f(22, True), fg=TEXT, bg=BG).pack(pady=(px(20), px(4)))
-        tk.Label(self.picker, text="Note: Auto detection is currently in Beta Production",
-                 font=self.f(11), fg=MUTED, bg=BG).pack()
+        tk.Label(self.picker, text="SELECT CROP TO DIAGNOSE", font=self.f(20, True), fg=WHITE, bg=BG).pack(pady=(px(20), px(4)))
+        tk.Label(self.picker, text="Auto-detection mode automatically identifies all supported plant species",
+                 font=self.f(10), fg=MUTED, bg=BG).pack()
 
         self.picker_grid = tk.Frame(self.picker, bg=BG)
         self.picker_grid.pack(expand=True)
 
-        self._button(self.picker, "REVERT", GREY_BTN, self.close_overlays, width=12).pack(pady=(0, px(18)), ipady=px(6))
+        self._button(self.picker, "REVERT TO SCANNER", GREY_BTN, self.close_overlays, width=px(200), height=px(42), radius=px(21), fg=WHITE, parent_bg=BG).pack(pady=(0, px(18)))
 
     def _fill_plant_picker(self):
         for w in self.picker_grid.winfo_children():
@@ -902,12 +1144,14 @@ class AgriLensApp:
         cols = 3 if len(options) > 4 else 2
         for i, (text, value) in enumerate(options):
             color = GREEN_PRIMARY if value == self.selected_plant else CARD
-            fg = DARK if value == self.selected_plant else TEXT
+            border = GREEN_ACCENT if value == self.selected_plant else BORDER
             b = self._button(
                 self.picker_grid, text, color,
-                lambda v=value: self.select_plant(v), width=22, size=12, fg=fg
+                lambda v=value: self.select_plant(v),
+                width=self.px(220), height=self.px(44), size=11, fg=WHITE,
+                border=border, radius=self.px(22), parent_bg=BG
             )
-            b.grid(row=i // cols, column=i % cols, padx=self.px(8), pady=self.px(8), ipady=self.px(14))
+            b.grid(row=i // cols, column=i % cols, padx=self.px(8), pady=self.px(8))
 
     def open_plant_picker(self):
         self._fill_plant_picker()
@@ -917,9 +1161,9 @@ class AgriLensApp:
     def select_plant(self, plant):
         self.selected_plant = plant
         if plant is None:
-            self.plant_btn.config(text="SELECT PLANT (AUTO - BETA)")
+            self.plant_btn.config(text="SELECT CROP (AUTO)")
         else:
-            self.plant_btn.config(text=f"PLANT: {plant.upper()}")
+            self.plant_btn.config(text=f"CROP: {plant.upper()}")
 
         if self.paused and self.last_probs:
             self._render_diagnosis(self.last_probs)
@@ -936,15 +1180,15 @@ class AgriLensApp:
         head.pack(side="top", fill="x")
         head.pack_propagate(False)
 
-        tk.Label(head, text="SECURITY LOCK", font=self.f(18, True), fg=AMBER_WARN, bg=PANEL).pack(side="left", padx=px(16))
-        self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=8).pack(side="right", padx=px(8), pady=px(7), fill="y")
+        tk.Label(head, text="ADMIN SECURITY LOCK", font=self.f(17, True), fg=WHITE, bg=PANEL).pack(side="left", padx=px(16))
+        self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=px(88), height=px(38), size=10, fg=WHITE, parent_bg=PANEL).pack(side="right", padx=px(8), pady=px(7))
 
         disp_box = tk.Frame(self.pwd_screen, bg=BG)
         disp_box.pack(pady=(px(12), px(6)))
 
         self.pwd_display_lbl = tk.Label(
             disp_box, text="", font=(FONT, max(14, round(20 * self.S)), "bold"),
-            fg=TEXT, bg=CARD, width=16, height=1, relief="solid", bd=1
+            fg=WHITE, bg=CARD, width=16, height=1, relief="solid", bd=1
         )
         self.pwd_display_lbl.pack(pady=(0, px(4)))
 
@@ -953,7 +1197,7 @@ class AgriLensApp:
         )
         self.pwd_status_lbl.pack()
 
-        # Touch Keyboard
+        # Touch Keyboard with Rounded Buttons
         kb_frame = tk.Frame(self.pwd_screen, bg=BG)
         kb_frame.pack(expand=True, pady=(0, px(10)))
 
@@ -969,26 +1213,26 @@ class AgriLensApp:
             r_frame.pack(pady=px(3))
             for key in row:
                 if key == "ENTER":
-                    btn = tk.Button(
-                        r_frame, text="ENTER", font=self.f(13, True), fg=DARK, bg=GREEN_PRIMARY,
-                        activebackground=TEXT, relief="flat", bd=0, width=22, height=1,
-                        command=self._pwd_submit
+                    btn = self._button(
+                        r_frame, "ENTER", GREEN_PRIMARY, self._pwd_submit,
+                        width=px(240), height=px(44), size=12, fg=WHITE, radius=px(12), parent_bg=BG
                     )
-                elif key in ("CLEAR", "BACKSPACE"):
-                    cmd = self._pwd_clear if key == "CLEAR" else self._pwd_backspace
-                    btn = tk.Button(
-                        r_frame, text=key, font=self.f(10, True), fg=TEXT, bg=GREY_BTN,
-                        activebackground=TEXT, relief="flat", bd=0, width=8, height=1,
-                        command=cmd
+                elif key == "CLEAR":
+                    btn = self._button(
+                        r_frame, "CLEAR", RED_ALERT, self._pwd_clear,
+                        width=px(92), height=px(42), size=10, fg=WHITE, radius=px(10), parent_bg=BG
+                    )
+                elif key == "BACKSPACE":
+                    btn = self._button(
+                        r_frame, "BACKSPACE", GREY_BTN, self._pwd_backspace,
+                        width=px(92), height=px(42), size=10, fg=WHITE, radius=px(10), parent_bg=BG
                     )
                 else:
-                    btn = tk.Button(
-                        r_frame, text=key, font=self.f(12, True), fg=TEXT, bg=CARD,
-                        activebackground=TEXT, activeforeground=DARK, relief="flat", bd=0,
-                        width=3, height=1,
-                        command=lambda k=key: self._pwd_key_press(k)
+                    btn = self._button(
+                        r_frame, key, CARD, lambda k=key: self._pwd_key_press(k),
+                        width=px(44), height=px(42), size=12, fg=WHITE, radius=px(10), border=BORDER, parent_bg=BG
                     )
-                btn.pack(side="left", padx=px(3), ipady=px(6))
+                btn.pack(side="left", padx=px(3))
 
     def open_password_screen(self):
         self.entered_password = ""
@@ -1031,8 +1275,8 @@ class AgriLensApp:
         head.pack(side="top", fill="x")
         head.pack_propagate(False)
 
-        tk.Label(head, text="ADMIN CONSOLE & AI PARAMETERS", font=self.f(17, True), fg=AMBER_WARN, bg=PANEL).pack(side="left", padx=px(16))
-        self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=8).pack(side="right", padx=px(8), pady=px(7), fill="y")
+        tk.Label(head, text="ADMIN CONSOLE & AI PARAMETERS", font=self.f(17, True), fg=WHITE, bg=PANEL).pack(side="left", padx=px(16))
+        self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=px(88), height=px(38), size=10, fg=WHITE, parent_bg=PANEL).pack(side="right", padx=px(8), pady=px(7))
 
         # Split screen container
         body = tk.Frame(self.admin, bg=BG)
@@ -1103,7 +1347,7 @@ class AgriLensApp:
             hdr = tk.Frame(row, bg=PANEL)
             hdr.pack(fill="x", pady=(0, px(1)))
 
-            tk.Label(hdr, text=spec["name"], font=self.f(9, True), fg=TEXT, bg=PANEL).pack(side="left")
+            tk.Label(hdr, text=spec["name"], font=self.f(9, True), fg=WHITE, bg=PANEL).pack(side="left")
 
             i_btn = tk.Label(
                 hdr, text=" ⓘ ", font=self.f(9, True),
@@ -1153,8 +1397,8 @@ class AgriLensApp:
         btn_row = tk.Frame(card_ai, bg=PANEL)
         btn_row.pack(fill="x", pady=(px(4), px(4)))
         self._button(
-            btn_row, "RESET DEFAULTS", CARD, self._reset_slider_defaults,
-            width=16, size=9, fg=GREEN_ACCENT
+            btn_row, "↺ RESET DEFAULTS", CARD, self._reset_slider_defaults,
+            width=px(160), height=px(36), size=9, fg=GREEN_ACCENT, border=BORDER, parent_bg=PANEL
         ).pack(side="left")
 
         # Interactive Explanation / Guide Card
@@ -1180,7 +1424,7 @@ class AgriLensApp:
         card_sys.pack(side="right", fill="both", expand=False)
         card_sys.pack_propagate(False)
 
-        tk.Label(card_sys, text="HARDWARE & SYSTEM", font=self.f(12, True), fg=TEXT, bg=PANEL, anchor="w").pack(fill="x")
+        tk.Label(card_sys, text="HARDWARE & SYSTEM", font=self.f(12, True), fg=WHITE, bg=PANEL, anchor="w").pack(fill="x")
         tk.Label(card_sys, text="Peripherals & application runtime", font=self.f(8), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(6)))
         tk.Frame(card_sys, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(10)))
 
@@ -1191,9 +1435,10 @@ class AgriLensApp:
 
         # DETECT WEBCAM BUTTON
         self.detect_btn = self._button(
-            card_sys, "DETECT WEBCAM", BLUE_ACTION, self._trigger_detect_webcam, width=20, size=11
+            card_sys, "🔍 DETECT WEBCAM", GREEN_PRIMARY, self._trigger_detect_webcam,
+            width=px(240), height=px(42), size=11, fg=WHITE, parent_bg=PANEL
         )
-        self.detect_btn.pack(ipady=px(6), pady=(0, px(4)))
+        self.detect_btn.pack(pady=(0, px(4)))
 
         self.detect_msg_lbl = tk.Label(
             card_sys, text="Click to scan and connect USB webcam", font=self.f(8), fg=MUTED, bg=PANEL, justify="center", wraplength=px(280)
@@ -1205,9 +1450,10 @@ class AgriLensApp:
 
         # GITHUB REPOSITORY LINK
         self.gh_btn = self._button(
-            card_sys, "OPEN GITHUB REPO", GREY_BTN, lambda: webbrowser.open("https://github.com/shreyuPRO/AGRILENS"), width=20, size=10
+            card_sys, "🌐 OPEN GITHUB REPO", CARD, lambda: webbrowser.open("https://github.com/shreyuPRO/AGRILENS"),
+            width=px(240), height=px(38), size=10, fg=WHITE, border=BORDER, parent_bg=PANEL
         )
-        self.gh_btn.pack(ipady=px(4), pady=(0, px(3)))
+        self.gh_btn.pack(pady=(0, px(4)))
         tk.Label(
             card_sys, text="shreyuPRO/AGRILENS (Cloud Connected)",
             font=self.f(8), fg=MUTED, bg=PANEL
@@ -1218,9 +1464,10 @@ class AgriLensApp:
 
         # CLOSE APPLICATION BUTTON
         self.exit_btn = self._button(
-            card_sys, "CLOSE APPLICATION", RED_ALERT, self.close, width=20, size=11
+            card_sys, "✕ CLOSE APPLICATION", RED_ALERT, self.close,
+            width=px(240), height=px(44), size=11, fg=WHITE, parent_bg=PANEL
         )
-        self.exit_btn.pack(ipady=px(6), pady=(0, px(4)))
+        self.exit_btn.pack(pady=(0, px(4)))
 
         tk.Label(
             card_sys, text="Safely exit the kiosk and return to desktop",
@@ -1351,15 +1598,16 @@ class AgriLensApp:
         self.canvas.itemconfig(self.msg_txt, text="")
 
     def _reset_panel(self):
-        self.banner.config(text="READY", bg=GREY_BTN, fg=TEXT)
+        self.banner_frame.config(bg=GREY_BTN)
+        self.banner.config(text="READY — AIM LEAF AT CAMERA", bg=GREY_BTN, fg=WHITE)
         if self.selected_plant is None:
-            self.plant_lbl.config(text="Mode: Auto (Beta Production)")
+            self.plant_lbl.config(text="Mode: Auto-Detect (Beta Production)")
         else:
             self.plant_lbl.config(text=f"Selected Plant: {self.selected_plant.upper()}")
-        self.disease_lbl.config(text="Aim leaf at box -> Tap CAPTURE -> Tap DIAGNOSE")
+        self.disease_lbl.config(text="Aim leaf inside box -> Tap CAPTURE -> Tap DIAGNOSE")
         self._draw_bar(0, GREY_BTN, "Waiting for leaf...")
         for row, num, txt in self.step_rows:
-            num.config(bg=GREEN_PRIMARY)
+            num.config(bg=GREEN_PRIMARY, fg=WHITE)
             txt.config(text="")
             row.pack_forget()
         self.cam_border.config(bg=CARD)
@@ -1373,14 +1621,15 @@ class AgriLensApp:
                 self.paused = True
                 self.captured_frame = self.latest_frame
                 self.canvas.itemconfig(self.guide, state="hidden")
+                self.canvas.itemconfig(self.live_badge, text="CAPTURED LEAF", fill=AMBER_WARN)
 
                 # Run Leaf Image Quality AI
                 score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
                 self.quality_lbl.config(text=q_msg, fg=q_color)
 
-                # Swap Capture button to RETAKE
-                self.capture_btn.config(text="RETAKE", bg=AMBER_WARN, fg=DARK)
-                self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=DARK)
+                # Swap Capture button to RETAKE, and Diagnose button to DIAGNOSE NOW
+                self.capture_btn.config(text="RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+                self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
             else:
                 self.quality_lbl.config(text="Camera not ready. Plug in webcam and tap ADMIN.", fg=RED_ALERT)
         else:
@@ -1389,10 +1638,11 @@ class AgriLensApp:
             self.captured_frame = None
             self.last_probs = None
             self.canvas.itemconfig(self.guide, state="normal")
+            self.canvas.itemconfig(self.live_badge, text="LIVE WEBCAM", fill=GREEN_ACCENT)
 
             self.quality_lbl.config(text="Leaf Quality AI: Align leaf inside box", fg=MUTED)
-            self.capture_btn.config(text="CAPTURE", bg=GREEN_PRIMARY, fg=DARK)
-            self.diagnose_btn.config(text="DIAGNOSE", bg=BLUE_ACTION, fg=TEXT)
+            self.capture_btn.config(text="CAPTURE LEAF", bg=GREEN_PRIMARY, fg=WHITE)
+            self.diagnose_btn.config(text="DIAGNOSE LEAF", bg=CARD, fg=WHITE)
             self._reset_panel()
             self._update_stats_bar()
 
@@ -1409,9 +1659,10 @@ class AgriLensApp:
             self.paused = True
             self.captured_frame = target_img
             self.canvas.itemconfig(self.guide, state="hidden")
+            self.canvas.itemconfig(self.live_badge, text="CAPTURED LEAF", fill=AMBER_WARN)
             score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
             self.quality_lbl.config(text=q_msg, fg=q_color)
-            self.capture_btn.config(text="RETAKE", bg=AMBER_WARN, fg=DARK)
+            self.capture_btn.config(text="RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
 
         if self.classifier:
             res = self.classifier.predict(target_img)
@@ -1466,38 +1717,48 @@ class AgriLensApp:
             disease_txt = "Specimen outside supported scope (Apple, Mango, Tomato)"
             steps = OOD_STEPS
             num_color = AMBER_WARN
+            btn_txt = "UNKNOWN LEAF"
+            btn_color = AMBER_WARN
         elif conf < self.threshold:
-            status = "NOT SURE"
+            status = "LOW CONFIDENCE — PLEASE RETAKE"
             color = AMBER_WARN
             if self.selected_plant:
                 plant_txt = f"Selected: {self.selected_plant.upper()}"
             else:
-                plant_txt = "Mode: Auto (Beta Production)"
-            disease_txt = "Low Confidence — Cannot Identify"
+                plant_txt = "Mode: Auto-Detect (Beta Production)"
+            disease_txt = "Low Confidence — Cannot Safely Identify"
             steps = UNSURE_STEPS
             num_color = AMBER_WARN
+            btn_txt = "LOW CONFIDENCE"
+            btn_color = AMBER_WARN
         elif healthy:
-            status = "HEALTHY LEAF"
+            status = "HEALTHY LEAF — NO DISEASE"
             color = GREEN_PRIMARY
-            auto_suffix = " (Auto - Beta Production)" if self.selected_plant is None else ""
-            plant_txt = f"Plant: {crop}{auto_suffix}" if crop else ("Auto (Beta Production)" if self.selected_plant is None else "")
-            disease_txt = "No Disease Detected (Healthy)"
+            auto_suffix = " (Auto-Detected)" if self.selected_plant is None else ""
+            plant_txt = f"Plant: {crop}{auto_suffix}" if crop else ("Auto-Detect (Beta Production)" if self.selected_plant is None else "")
+            disease_txt = "No Disease Detected (Healthy Foliage)"
             steps = get_recommendation(crop, cond)
             num_color = GREEN_PRIMARY
+            btn_txt = "HEALTHY CROP"
+            btn_color = GREEN_PRIMARY
         else:
-            status = "DISEASE DETECTED"
+            status = f"{cond.upper()} DETECTED"
             color = RED_ALERT
-            auto_suffix = " (Auto - Beta Production)" if self.selected_plant is None else ""
-            plant_txt = f"Plant: {crop}{auto_suffix}" if crop else ("Auto (Beta Production)" if self.selected_plant is None else "")
+            auto_suffix = " (Auto-Detected)" if self.selected_plant is None else ""
+            plant_txt = f"Plant: {crop}{auto_suffix}" if crop else ("Auto-Detect (Beta Production)" if self.selected_plant is None else "")
             disease_txt = cond
             steps = get_recommendation(crop, cond)
             num_color = RED_ALERT
+            btn_txt = "DISEASE FOUND"
+            btn_color = RED_ALERT
 
         # Update Banner & Texts
-        self.banner.config(text=status, bg=color, fg=DARK if color in (AMBER_WARN, GREEN_ACCENT) else TEXT)
+        self.banner_frame.config(bg=color)
+        self.banner.config(text=status, bg=color, fg=WHITE)
         self.plant_lbl.config(text=plant_txt)
         self.disease_lbl.config(text=disease_txt)
         self.cam_border.config(bg=color)
+        self.diagnose_btn.config(text=btn_txt, bg=btn_color, fg=WHITE)
 
         # Update Confidence Bar (if unknown plant, display the rejection message)
         if is_unknown_plant:
@@ -1524,8 +1785,8 @@ class AgriLensApp:
         )
 
     def _update_stats_bar(self):
-        mode_text = self.classifier.mode
-        if self.classifier.error_reason:
+        mode_text = self.classifier.mode if self.classifier else "Initializing..."
+        if self.classifier and self.classifier.error_reason:
             mode_text = f"DEMO ({self.classifier.error_reason})"
         lat = f"{self.latency_ms:.0f} ms" if self.latency_ms > 0 else "-- ms"
         cam = self.camera.kind if self.camera else "none"
