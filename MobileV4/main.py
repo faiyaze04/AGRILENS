@@ -13,6 +13,7 @@ Features:
 
 import os
 import sys
+import json
 import platform
 import queue
 import random
@@ -93,6 +94,34 @@ LABELS_PATH = find_file("labels.txt")
 CONFIDENCE_THRESHOLD = 0.65  # Minimum positive identification threshold (65%)
 OOD_MARGIN_THRESHOLD = 0.30  # Minimum gap between 1st and 2nd class
 OOD_LOGIT_THRESHOLD  = 4.20  # Minimum raw logit activation for supported crops
+SHARPNESS_MIN_THRESHOLD = 55.0  # Minimum spatial Laplacian focus sharpness variance
+
+CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kiosk_config.json") if "__file__" in globals() else "kiosk_config.json"
+DEFAULT_CONFIG = {
+    "confidence_threshold": CONFIDENCE_THRESHOLD,
+    "ood_margin": OOD_MARGIN_THRESHOLD,
+    "ood_logit": OOD_LOGIT_THRESHOLD,
+    "sharpness_min": SHARPNESS_MIN_THRESHOLD,
+}
+
+def load_kiosk_config():
+    cfg = dict(DEFAULT_CONFIG)
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    cfg.update(data)
+        except Exception as e:
+            print(f"Notice: loading default config ({e})")
+    return cfg
+
+def save_kiosk_config(cfg):
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print(f"Notice: unable to save kiosk config ({e})")
 
 ADMIN_PASSWORD = "AGRILENS"
 PREVIEW_FPS = 25
@@ -258,7 +287,7 @@ class LeafQualityAI:
     3. Foliage & Leaf Presence (Excess Green Index & central leaf coverage check)
     """
     @staticmethod
-    def assess(pil_image):
+    def assess(pil_image, min_sharpness=55.0):
         if np is None or pil_image is None:
             return 80, "GOOD", "Image Quality: Acceptable", GREEN_ACCENT
 
@@ -290,18 +319,19 @@ class LeafQualityAI:
             )
             sharp_var = float(np.var(lap))
 
-            # Calibrated sharpness scoring
-            if sharp_var > 220.0:
+            # Calibrated sharpness scoring relative to min_sharpness
+            base_s = max(10.0, float(min_sharpness))
+            if sharp_var > (base_s * 4.0):
                 sharpness_score = 98
                 sharp_status = "Sharp & In Focus"
-            elif sharp_var > 110.0:
-                sharpness_score = int(70 + (sharp_var - 110) * 0.25)
+            elif sharp_var > (base_s * 2.0):
+                sharpness_score = int(70 + (sharp_var - base_s * 2.0) * (28.0 / (base_s * 2.0)))
                 sharp_status = "Good Focus"
-            elif sharp_var > 55.0:
-                sharpness_score = int(45 + (sharp_var - 55) * 0.45)
+            elif sharp_var >= base_s:
+                sharpness_score = int(45 + (sharp_var - base_s) * (25.0 / base_s))
                 sharp_status = "Slightly Blurry"
             else:
-                sharpness_score = max(10, int(sharp_var * 0.7))
+                sharpness_score = max(10, int(sharp_var * (45.0 / base_s)))
                 sharp_status = "Blurry (Motion Blur)"
 
             # 3. Leaf Presence (Center Box Coverage via Excess Green Index: 2G - R - B)
@@ -538,7 +568,85 @@ class Classifier:
 
 
 # =============================================================================
-# 7. APPLICATION USER INTERFACE
+# 7. INTERACTIVE TOOLTIP COMPONENT
+# =============================================================================
+class ToolTip:
+    """
+    Floating glassmorphic tooltip with accent border for mouse-over (i) badges.
+    Supports both mouse-over (<Enter>/<Leave>) and touchscreen tap (<Button-1>).
+    """
+    def __init__(self, widget, title, text, font_family=FONT, enter_cb=None, leave_cb=None):
+        self.widget = widget
+        self.title = title
+        self.text = text
+        self.font_family = font_family
+        self.enter_cb = enter_cb
+        self.leave_cb = leave_cb
+        self.tip_window = None
+
+        self.widget.bind("<Enter>", self.show_tip)
+        self.widget.bind("<Leave>", self.hide_tip)
+        self.widget.bind("<Button-1>", self.toggle_tip)
+
+    def show_tip(self, event=None):
+        if self.enter_cb:
+            self.enter_cb(self.title, self.text)
+
+        if self.tip_window or not self.text:
+            return
+
+        try:
+            x = self.widget.winfo_rootx() + 26
+            y = self.widget.winfo_rooty() - 12
+        except Exception:
+            return
+
+        self.tip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        try:
+            tw.attributes("-topmost", True)
+        except Exception:
+            pass
+
+        frame = tk.Frame(
+            tw, bg=CARD, highlightbackground=GREEN_ACCENT,
+            highlightthickness=1, padx=12, pady=10
+        )
+        frame.pack()
+
+        tk.Label(
+            frame, text=f"ⓘ  {self.title}",
+            font=(self.font_family, 10, "bold"),
+            fg=GREEN_ACCENT, bg=CARD, anchor="w"
+        ).pack(fill="x", pady=(0, 4))
+
+        tk.Label(
+            frame, text=self.text,
+            font=(self.font_family, 9),
+            fg=TEXT, bg=CARD, justify="left", wraplength=280
+        ).pack(fill="x")
+
+        tw.wm_geometry(f"+{x}+{y}")
+
+    def hide_tip(self, event=None):
+        if self.leave_cb:
+            self.leave_cb()
+        if self.tip_window:
+            try:
+                self.tip_window.destroy()
+            except Exception:
+                pass
+            self.tip_window = None
+
+    def toggle_tip(self, event=None):
+        if self.tip_window:
+            self.hide_tip()
+        else:
+            self.show_tip()
+
+
+# =============================================================================
+# 8. APPLICATION USER INTERFACE
 # =============================================================================
 class AgriLensApp:
     def __init__(self, root):
@@ -548,12 +656,21 @@ class AgriLensApp:
         self.latest_frame = None
         self.captured_frame = None
 
-        self.threshold = CONFIDENCE_THRESHOLD
+        cfg = load_kiosk_config()
+        self.threshold = float(cfg.get("confidence_threshold", CONFIDENCE_THRESHOLD))
+        self.ood_margin = float(cfg.get("ood_margin", OOD_MARGIN_THRESHOLD))
+        self.ood_logit = float(cfg.get("ood_logit", OOD_LOGIT_THRESHOLD))
+        self.sharpness_min = float(cfg.get("sharpness_min", SHARPNESS_MIN_THRESHOLD))
+
         self.selected_plant = None
         self.last_probs = None
         self.latency_ms = 0.0
 
         self.entered_password = ""
+        self.camera = None
+        self.classifier = None
+        self.sliders = {}
+        self.slider_badges = {}
 
         self._setup_window()
         self._build_top_bar()
@@ -905,7 +1022,7 @@ class AgriLensApp:
             self.entered_password = ""
             self._update_pwd_display()
 
-    # ---- 5. Admin Panel (Webcam Detection + Close Application) ----
+    # ---- 5. Admin Panel (AI Diagnostics Parameters & Hardware Controls) ----
     def _build_admin_panel(self):
         px = self.px
         self.admin = tk.Frame(self.root, bg=BG)
@@ -914,62 +1031,264 @@ class AgriLensApp:
         head.pack(side="top", fill="x")
         head.pack_propagate(False)
 
-        tk.Label(head, text="ADMIN PANEL", font=self.f(18, True), fg=AMBER_WARN, bg=PANEL).pack(side="left", padx=px(16))
+        tk.Label(head, text="ADMIN CONSOLE & AI PARAMETERS", font=self.f(17, True), fg=AMBER_WARN, bg=PANEL).pack(side="left", padx=px(16))
         self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=8).pack(side="right", padx=px(8), pady=px(7), fill="y")
 
-        box = tk.Frame(self.admin, bg=PANEL, padx=px(30), pady=px(24))
-        box.place(relx=0.5, rely=0.55, anchor="center")
+        # Split screen container
+        body = tk.Frame(self.admin, bg=BG)
+        body.pack(side="top", fill="both", expand=True, padx=px(12), pady=px(10))
 
-        tk.Label(box, text="SYSTEM & HARDWARE CONTROLS", font=self.f(16, True), fg=TEXT, bg=PANEL).pack(pady=(0, px(12)))
+        # LEFT CARD: AI Diagnostic Sliders & Guidelines (60% width)
+        card_ai = tk.Frame(body, bg=PANEL, padx=px(14), pady=px(10))
+        card_ai.pack(side="left", fill="both", expand=True, padx=(0, px(8)))
+
+        tk.Label(card_ai, text="AI DIAGNOSTIC PARAMETERS", font=self.f(12, True), fg=GREEN_ACCENT, bg=PANEL, anchor="w").pack(fill="x")
+        tk.Label(card_ai, text="Fine-tune confidence, out-of-scope gating & focus thresholds", font=self.f(8), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(6)))
+        tk.Frame(card_ai, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(8)))
+
+        self.sliders = {}
+        self.slider_badges = {}
+
+        slider_specs = [
+            {
+                "key": "confidence_threshold",
+                "name": "Confidence Threshold",
+                "min": 30, "max": 95, "step": 1,
+                "get_initial": lambda: int(round(self.threshold * 100)),
+                "format": lambda v: f"{int(v)}%",
+                "to_param": lambda v: float(v) / 100.0,
+                "attr": "threshold",
+                "info_title": "Confidence Acceptance Threshold",
+                "info_text": "Minimum model certainty required to accept a diagnosis. Lower values allow diagnoses in difficult lighting; higher values trigger 'NOT SURE' to avoid false alarms."
+            },
+            {
+                "key": "ood_margin",
+                "name": "OOD Ambiguity Margin",
+                "min": 10, "max": 60, "step": 1,
+                "get_initial": lambda: int(round(self.ood_margin * 100)),
+                "format": lambda v: f"{int(v)}%",
+                "to_param": lambda v: float(v) / 100.0,
+                "attr": "ood_margin",
+                "info_title": "Out-of-Scope Ambiguity Gap",
+                "info_text": "Minimum probability lead of the #1 diagnosis over the #2 runner-up. If the model is torn between two classes, this margin rejects the specimen as an ambiguous or unknown plant."
+            },
+            {
+                "key": "ood_logit",
+                "name": "Neural Logit Energy Gate",
+                "min": 20, "max": 65, "step": 1,
+                "get_initial": lambda: int(round(self.ood_logit * 10)),
+                "format": lambda v: f"{float(v) / 10.0:.2f}",
+                "to_param": lambda v: round(float(v) / 10.0, 2),
+                "attr": "ood_logit",
+                "info_title": "Neural Logit Energy Gate",
+                "info_text": "Raw unnormalized neural activation filter. Real leaves from trained species generate strong logit spikes (>4.2). Uncataloged leaves (e.g. money plants) produce low logits and are safely rejected."
+            },
+            {
+                "key": "sharpness_min",
+                "name": "Sharpness Quality Gate",
+                "min": 20, "max": 120, "step": 5,
+                "get_initial": lambda: int(round(self.sharpness_min)),
+                "format": lambda v: f"{int(v)}",
+                "to_param": lambda v: float(v),
+                "attr": "sharpness_min",
+                "info_title": "Sharpness & Focus Quality Gate",
+                "info_text": "Spatial Laplacian variance threshold for motion blur detection. Lower settings allow softer webcams to pass; higher settings enforce crisp focus before permitting diagnosis."
+            },
+        ]
+
+        for spec in slider_specs:
+            row = tk.Frame(card_ai, bg=PANEL)
+            row.pack(fill="x", pady=(0, px(4)))
+
+            hdr = tk.Frame(row, bg=PANEL)
+            hdr.pack(fill="x", pady=(0, px(1)))
+
+            tk.Label(hdr, text=spec["name"], font=self.f(9, True), fg=TEXT, bg=PANEL).pack(side="left")
+
+            i_btn = tk.Label(
+                hdr, text=" ⓘ ", font=self.f(9, True),
+                fg=GREEN_ACCENT, bg=CARD, cursor="hand2", padx=px(2), pady=0
+            )
+            i_btn.pack(side="left", padx=px(6))
+
+            init_val = spec["get_initial"]()
+            val_lbl = tk.Label(
+                hdr, text=spec["format"](init_val), font=self.f(9, True),
+                fg=GREEN_ACCENT, bg=CARD, padx=px(6), pady=px(1)
+            )
+            val_lbl.pack(side="right")
+            self.slider_badges[spec["key"]] = (val_lbl, spec["format"])
+
+            ToolTip(
+                i_btn,
+                spec["info_title"],
+                spec["info_text"],
+                font_family=FONT,
+                enter_cb=lambda t=spec["info_title"], d=spec["info_text"]: self._update_inline_guide(t, d),
+                leave_cb=self._revert_inline_guide
+            )
+
+            slider = tk.Scale(
+                row,
+                from_=spec["min"],
+                to=spec["max"],
+                resolution=spec["step"],
+                orient="horizontal",
+                showvalue=False,
+                bg=PANEL,
+                troughcolor=BG,
+                activebackground=GREEN_ACCENT,
+                highlightthickness=0,
+                bd=0,
+                cursor="hand2"
+            )
+            slider.set(init_val)
+            slider.config(
+                command=lambda val, s=spec: self._on_slider_change(s, val)
+            )
+            slider.pack(fill="x")
+            self.sliders[spec["key"]] = (slider, spec)
+
+        # Reset button row
+        btn_row = tk.Frame(card_ai, bg=PANEL)
+        btn_row.pack(fill="x", pady=(px(4), px(4)))
+        self._button(
+            btn_row, "RESET DEFAULTS", CARD, self._reset_slider_defaults,
+            width=16, size=9, fg=GREEN_ACCENT
+        ).pack(side="left")
+
+        # Interactive Explanation / Guide Card
+        self.guide_card = tk.Frame(card_ai, bg=CARD, padx=px(8), pady=px(6), highlightbackground=BORDER, highlightthickness=1)
+        self.guide_card.pack(fill="both", expand=True, pady=(px(2), 0))
+
+        self.guide_title_lbl = tk.Label(
+            self.guide_card, text="ⓘ  PARAMETER GUIDE",
+            font=self.f(9, True), fg=GREEN_ACCENT, bg=CARD, anchor="w"
+        )
+        self.guide_title_lbl.pack(fill="x")
+
+        self.guide_desc_lbl = tk.Label(
+            self.guide_card,
+            text="Hover or tap any ⓘ icon to view the meaning and impact of each setting.",
+            font=self.f(8), fg=MUTED, bg=CARD, justify="left", anchor="w",
+            wraplength=self.px(420)
+        )
+        self.guide_desc_lbl.pack(fill="x", pady=(px(2), 0))
+
+        # RIGHT CARD: Hardware & System (40% width)
+        card_sys = tk.Frame(body, bg=PANEL, padx=px(14), pady=px(10), width=self.px(320))
+        card_sys.pack(side="right", fill="both", expand=False)
+        card_sys.pack_propagate(False)
+
+        tk.Label(card_sys, text="HARDWARE & SYSTEM", font=self.f(12, True), fg=TEXT, bg=PANEL, anchor="w").pack(fill="x")
+        tk.Label(card_sys, text="Peripherals & application runtime", font=self.f(8), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(6)))
+        tk.Frame(card_sys, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(10)))
 
         self.webcam_status_lbl = tk.Label(
-            box, text="Checking camera...", font=self.f(12), fg=MUTED, bg=PANEL, justify="center"
+            card_sys, text="Checking camera...", font=self.f(10, True), fg=MUTED, bg=PANEL, justify="center", wraplength=px(280)
         )
-        self.webcam_status_lbl.pack(pady=(0, px(16)))
+        self.webcam_status_lbl.pack(pady=(0, px(8)))
 
         # DETECT WEBCAM BUTTON
         self.detect_btn = self._button(
-            box, "DETECT WEBCAM", BLUE_ACTION, self._trigger_detect_webcam, width=22, size=14
+            card_sys, "DETECT WEBCAM", BLUE_ACTION, self._trigger_detect_webcam, width=20, size=11
         )
-        self.detect_btn.pack(ipady=px(8), pady=(0, px(6)))
+        self.detect_btn.pack(ipady=px(6), pady=(0, px(4)))
 
         self.detect_msg_lbl = tk.Label(
-            box, text="Click to scan and connect USB webcam", font=self.f(10), fg=MUTED, bg=PANEL
+            card_sys, text="Click to scan and connect USB webcam", font=self.f(8), fg=MUTED, bg=PANEL, justify="center", wraplength=px(280)
         )
-        self.detect_msg_lbl.pack(pady=(0, px(18)))
+        self.detect_msg_lbl.pack(pady=(0, px(10)))
 
         # SEPARATOR
-        tk.Frame(box, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(18)))
+        tk.Frame(card_sys, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(10)))
 
         # GITHUB REPOSITORY LINK
         self.gh_btn = self._button(
-            box, "OPEN GITHUB REPO", GREY_BTN, lambda: webbrowser.open("https://github.com/shreyuPRO/AGRILENS"), width=22, size=12
+            card_sys, "OPEN GITHUB REPO", GREY_BTN, lambda: webbrowser.open("https://github.com/shreyuPRO/AGRILENS"), width=20, size=10
         )
-        self.gh_btn.pack(ipady=px(6), pady=(0, px(4)))
+        self.gh_btn.pack(ipady=px(4), pady=(0, px(3)))
         tk.Label(
-            box, text="shreyuPRO/AGRILENS (Cloud Connected)",
-            font=self.f(10), fg=MUTED, bg=PANEL
-        ).pack(pady=(0, px(16)))
+            card_sys, text="shreyuPRO/AGRILENS (Cloud Connected)",
+            font=self.f(8), fg=MUTED, bg=PANEL
+        ).pack(pady=(0, px(10)))
 
         # SEPARATOR
-        tk.Frame(box, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(18)))
+        tk.Frame(card_sys, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(10)))
 
         # CLOSE APPLICATION BUTTON
         self.exit_btn = self._button(
-            box, "CLOSE APPLICATION", RED_ALERT, self.close, width=22, size=14
+            card_sys, "CLOSE APPLICATION", RED_ALERT, self.close, width=20, size=11
         )
-        self.exit_btn.pack(ipady=px(8), pady=(0, px(6)))
+        self.exit_btn.pack(ipady=px(6), pady=(0, px(4)))
 
         tk.Label(
-            box, text="Safely exit the kiosk and return to desktop",
-            font=self.f(10), fg=MUTED, bg=PANEL
+            card_sys, text="Safely exit the kiosk and return to desktop",
+            font=self.f(8), fg=MUTED, bg=PANEL
         ).pack()
+
+    def _update_inline_guide(self, title, desc):
+        if hasattr(self, "guide_title_lbl") and hasattr(self, "guide_desc_lbl"):
+            self.guide_title_lbl.config(text=f"ⓘ  {title.upper()}")
+            self.guide_desc_lbl.config(text=desc, fg=TEXT)
+
+    def _revert_inline_guide(self):
+        if hasattr(self, "guide_title_lbl") and hasattr(self, "guide_desc_lbl"):
+            self.guide_title_lbl.config(text="ⓘ  PARAMETER GUIDE")
+            self.guide_desc_lbl.config(
+                text="Hover or tap any ⓘ icon to view the meaning and impact of each setting.",
+                fg=MUTED
+            )
+
+    def _on_slider_change(self, spec, val):
+        val_float = float(val)
+        if spec["key"] in self.slider_badges:
+            lbl, fmt = self.slider_badges[spec["key"]]
+            lbl.config(text=fmt(val_float))
+
+        param_val = spec["to_param"](val_float)
+        setattr(self, spec["attr"], param_val)
+        self._update_inline_guide(spec["info_title"], spec["info_text"])
+        self._save_current_settings()
+
+    def _save_current_settings(self):
+        cfg = {
+            "confidence_threshold": round(self.threshold, 3),
+            "ood_margin": round(self.ood_margin, 3),
+            "ood_logit": round(self.ood_logit, 2),
+            "sharpness_min": round(self.sharpness_min, 1)
+        }
+        save_kiosk_config(cfg)
+
+    def _reset_slider_defaults(self):
+        defaults = {
+            "confidence_threshold": int(CONFIDENCE_THRESHOLD * 100),
+            "ood_margin": int(OOD_MARGIN_THRESHOLD * 100),
+            "ood_logit": int(OOD_LOGIT_THRESHOLD * 10),
+            "sharpness_min": int(SHARPNESS_MIN_THRESHOLD)
+        }
+        for key, (slider, spec) in self.sliders.items():
+            if key in defaults:
+                slider.set(defaults[key])
+                val_float = float(defaults[key])
+                if key in self.slider_badges:
+                    lbl, fmt = self.slider_badges[key]
+                    lbl.config(text=fmt(val_float))
+                param_val = spec["to_param"](val_float)
+                setattr(self, spec["attr"], param_val)
+
+        self._save_current_settings()
+        self._update_inline_guide(
+            "RESET DEFAULTS COMPLETE",
+            "All AI diagnostic and quality parameters have been restored to factory recommended calibration defaults."
+        )
 
     def open_admin_panel(self):
         cam_text = self.camera.kind if (self.camera and self.camera.kind != "none") else "No Webcam Connected"
         color = GREEN_PRIMARY if "USB" in cam_text else RED_ALERT
         self.webcam_status_lbl.config(text=f"Current Status: {cam_text}", fg=color)
         self.detect_msg_lbl.config(text="Plug in your USB webcam and click DETECT WEBCAM", fg=MUTED)
+        self._revert_inline_guide()
         self.admin.place(x=0, y=0, relwidth=1, relheight=1)
         self.admin.lift()
 
@@ -1056,7 +1375,7 @@ class AgriLensApp:
                 self.canvas.itemconfig(self.guide, state="hidden")
 
                 # Run Leaf Image Quality AI
-                score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame)
+                score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
                 self.quality_lbl.config(text=q_msg, fg=q_color)
 
                 # Swap Capture button to RETAKE
@@ -1090,7 +1409,7 @@ class AgriLensApp:
             self.paused = True
             self.captured_frame = target_img
             self.canvas.itemconfig(self.guide, state="hidden")
-            score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame)
+            score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
             self.quality_lbl.config(text=q_msg, fg=q_color)
             self.capture_btn.config(text="RETAKE", bg=AMBER_WARN, fg=DARK)
 
@@ -1136,8 +1455,8 @@ class AgriLensApp:
         is_unknown_plant = (
             is_negative_class or
             (raw_top1 < self.threshold) or 
-            (raw_margin < OOD_MARGIN_THRESHOLD) or 
-            (max_logit < OOD_LOGIT_THRESHOLD)
+            (raw_margin < self.ood_margin) or 
+            (max_logit < self.ood_logit)
         )
 
         if is_unknown_plant:
