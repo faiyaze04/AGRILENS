@@ -400,15 +400,18 @@ class LeafQualityAI:
 
 
 # =============================================================================
-# 5. WEBCAM INTERFACE (Multi-Backend, High-Robustness Video Capture)
+# 5. WEBCAM INTERFACE (Multi-Backend, High-Speed Video Capture)
 # =============================================================================
 class Camera:
-    def __init__(self):
+    def __init__(self, auto_detect=True):
         self.cap = None
         self.cv2 = None
         self.kind = "none"
         self.port = -1
         self.backend = "none"
+        self.width = 640
+        self.height = 480
+        self.device_name = "USB Camera"
         self.fail_count = 0
 
         # Silence noisy OpenCV C++ backend/obsensor log spam
@@ -419,37 +422,43 @@ class Camera:
         except Exception:
             pass
 
-        self.detect_webcam()
+        if auto_detect:
+            self.detect_webcam()
 
-    def _query_device_names(self):
-        """Discovers friendly hardware device names on Windows & Linux."""
-        names = []
-        if sys.platform.startswith("win"):
-            try:
-                cmd = ["powershell", "-NoProfile", "-Command",
-                       "Get-PnpDevice -Class Camera -Status OK | Select-Object -ExpandProperty FriendlyName"]
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
-                for line in res.stdout.splitlines():
-                    clean = line.strip()
-                    if clean and clean not in names:
-                        names.append(clean)
-            except Exception:
-                pass
-        elif sys.platform.startswith("linux"):
-            for p in sorted(glob.glob("/sys/class/video4linux/video*/name")):
+    def _fetch_friendly_names_async(self):
+        """Discovers friendly hardware device names in background without blocking the UI."""
+        def worker():
+            names = []
+            if sys.platform.startswith("win"):
                 try:
-                    with open(p, "r") as f:
-                        n = f.read().strip()
-                        if n and n not in names:
-                            names.append(n)
+                    cmd = ["powershell", "-NoProfile", "-Command",
+                           "Get-PnpDevice -Class Camera -Status OK | Select-Object -ExpandProperty FriendlyName"]
+                    res = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                    for line in res.stdout.splitlines():
+                        clean = line.strip()
+                        if clean and clean not in names:
+                            names.append(clean)
                 except Exception:
                     pass
-        return names
+            elif sys.platform.startswith("linux"):
+                for p in sorted(glob.glob("/sys/class/video4linux/video*/name")):
+                    try:
+                        with open(p, "r") as f:
+                            n = f.read().strip()
+                            if n and n not in names:
+                                names.append(n)
+                    except Exception:
+                        pass
+            if names and self.kind != "none":
+                dev = names[self.port] if (0 <= self.port < len(names)) else names[0]
+                self.device_name = dev
+                self.kind = f"{dev} (Port {self.port}, {self.backend}, {self.width}x{self.height})"
+        threading.Thread(target=worker, daemon=True).start()
 
     def detect_webcam(self):
         """
-        High-robustness camera scanner using platform-optimized backend cascading:
-        - Windows: DirectShow (CAP_DSHOW) -> Media Foundation (CAP_MSMF) -> Default (CAP_ANY)
+        Fast, high-robustness camera scanner using prioritized platform backends:
+        - Windows: DirectShow (CAP_DSHOW) -> Default (CAP_ANY)
         - Linux/RPi: Video4Linux2 (CAP_V4L2) -> Default (CAP_ANY)
         Configures resolution, buffersize, and warm-up reads before locking connection.
         """
@@ -469,13 +478,10 @@ class Camera:
                 self.kind = "none"
                 return False, "OpenCV (cv2) is not installed."
 
-        device_names = self._query_device_names()
-
         # Build prioritized backend list
         if sys.platform.startswith("win"):
             backends = [
                 ("DirectShow", self.cv2.CAP_DSHOW),
-                ("Media Foundation", self.cv2.CAP_MSMF),
                 ("Default", self.cv2.CAP_ANY)
             ]
         elif sys.platform.startswith("linux"):
@@ -486,9 +492,9 @@ class Camera:
         else:
             backends = [("Default", self.cv2.CAP_ANY)]
 
-        # Probe ports with cascading backends
+        # Probe ports with cascading backends (ports 0, 1, 2)
         for b_name, b_id in backends:
-            for port in range(5):
+            for port in range(3):
                 try:
                     c = self.cv2.VideoCapture(port, b_id)
                     if not c.isOpened():
@@ -504,26 +510,24 @@ class Camera:
 
                     # Multi-frame warmup: Allow auto-exposure (AEC) and auto-gain (AGC) to stabilize
                     ok, frame = False, None
-                    for _ in range(5):
+                    for _ in range(4):
                         ok, frame = c.read()
                         if ok and frame is not None and frame.size > 0:
                             break
-                        time.sleep(0.035)
+                        time.sleep(0.025)
 
                     if ok and frame is not None and frame.size > 0:
                         h, w = frame.shape[:2]
-                        if port < len(device_names):
-                            dev_name = device_names[port]
-                        elif device_names:
-                            dev_name = device_names[0]
-                        else:
-                            dev_name = "USB Camera"
-
                         self.cap = c
                         self.port = port
                         self.backend = b_name
-                        self.kind = f"{dev_name} (Port {port}, {b_name}, {w}x{h})"
+                        self.width = w
+                        self.height = h
+                        self.device_name = "USB Camera"
+                        self.kind = f"USB Camera (Port {port}, {b_name}, {w}x{h})"
                         self.fail_count = 0
+                        # Query friendly hardware model name asynchronously in background
+                        self._fetch_friendly_names_async()
                         return True, f"Connected: {self.kind}"
 
                     c.release()
@@ -945,7 +949,7 @@ class AgriLensApp:
         self.latency_ms = 0.0
 
         self.entered_password = ""
-        self.camera = None
+        self.camera = Camera(auto_detect=False)
         self.classifier = None
         self.plants = ["Apple", "Mango", "Pepper", "Potato"]
         self.crops = []
@@ -960,11 +964,19 @@ class AgriLensApp:
         self._build_password_screen()
         self._build_admin_panel()
 
+        # Display immediate responsive startup status on canvas
+        self.canvas.itemconfig(
+            self.msg_txt,
+            text="⚡ INITIALIZING AGRILENS AI VISION ENGINE...\nConnecting to camera..."
+        )
+        self.banner.config(text="STARTING UP — PLEASE WAIT...", bg=GREY_BTN, fg=WHITE)
+
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.root.bind("<Escape>", lambda e: self.close())
         self.root.bind("<space>", lambda e: self.handle_capture_or_retake())
 
-        self.root.after(100, self._start)
+        # Non-blocking async bootstrap: window paints immediately in <0.1s
+        self.root.after(30, self._start_async_bootstrap)
 
     def _setup_window(self):
         sw = self.root.winfo_screenwidth()
@@ -1655,9 +1667,29 @@ class AgriLensApp:
 
     def _trigger_detect_webcam(self):
         self.detect_btn.config(state="disabled", text="SCANNING...")
-        self.root.update()
+        self.detect_msg_lbl.config(text="Scanning USB ports for video devices...", fg=MUTED)
+        self.root.update_idletasks()
 
-        ok, msg = self.camera.detect_webcam()
+        q = queue.Queue()
+        def scan_worker():
+            ok, msg = self.camera.detect_webcam()
+            q.put((ok, msg))
+
+        threading.Thread(target=scan_worker, daemon=True).start()
+
+        def poll_scan():
+            try:
+                ok, msg = q.get_nowait()
+                self._on_detect_webcam_finished(ok, msg)
+                return
+            except queue.Empty:
+                pass
+            if self.running:
+                self.root.after(40, poll_scan)
+
+        poll_scan()
+
+    def _on_detect_webcam_finished(self, ok, msg):
         if ok:
             self.webcam_status_lbl.config(text=f"Connected:\n{self.camera.kind}", fg=GREEN_PRIMARY)
             self.detect_msg_lbl.config(text="SUCCESS: Webcam connected and active!", fg=GREEN_PRIMARY)
@@ -1677,14 +1709,39 @@ class AgriLensApp:
         self.pwd_screen.place_forget()
         self.admin.place_forget()
 
-    # ---- 6. Live Camera Loop & AI Pipeline ----
-    def _start(self):
-        self.classifier = Classifier(MODEL_PATH, LABELS_PATH)
-        self.parsed = [parse_label(l) for l in self.classifier.labels]
-        self.crops = [p[0] for p in self.parsed]
-        self.plants = list(dict.fromkeys(c for c in self.crops if c))
+    # ---- 6. Live Camera Loop & AI Pipeline (Non-Blocking Async Bootstrap) ----
+    def _start_async_bootstrap(self):
+        # Force initial paint so the UI is visible, responsive, and avoids "Not Responding"
+        self.root.update_idletasks()
+        self._init_queue = queue.Queue()
 
-        self.camera = Camera()
+        def worker():
+            classifier = Classifier(MODEL_PATH, LABELS_PATH)
+            parsed = [parse_label(l) for l in classifier.labels]
+            crops = [p[0] for p in parsed]
+            plants = list(dict.fromkeys(c for c in crops if c))
+            self.camera.detect_webcam()
+            self._init_queue.put((classifier, parsed, crops, plants))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self._poll_init_queue()
+
+    def _poll_init_queue(self):
+        try:
+            res = self._init_queue.get_nowait()
+            self._on_bootstrap_complete(*res)
+            return
+        except queue.Empty:
+            pass
+        if self.running:
+            self.root.after(40, self._poll_init_queue)
+
+    def _on_bootstrap_complete(self, classifier, parsed, crops, plants):
+        self.classifier = classifier
+        self.parsed = parsed
+        self.crops = crops
+        self.plants = plants
+
         if self.camera.kind == "none":
             self.canvas.itemconfig(
                 self.msg_txt,
@@ -1930,9 +1987,40 @@ class AgriLensApp:
 
 
 # =============================================================================
-# 8. MAIN ENTRY POINT
+# 8. SINGLE INSTANCE GUARD & MAIN ENTRY POINT
 # =============================================================================
+SINGLE_INSTANCE_SOCKET = None
+
+def acquire_single_instance_lock(port=48195):
+    """Binds a local loopback port to prevent multiple conflicting instances from locking the camera."""
+    global SINGLE_INSTANCE_SOCKET
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", port))
+        s.listen(1)
+        SINGLE_INSTANCE_SOCKET = s
+        return True
+    except Exception:
+        return False
+
+
 if __name__ == "__main__":
+    if not acquire_single_instance_lock():
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            from tkinter import messagebox
+            messagebox.showwarning(
+                "AGRILENS Kiosk Already Running",
+                "An instance of AGRILENS is already running in the background.\n\n"
+                "Please check your taskbar or close the background instance before starting a new one."
+            )
+        except Exception:
+            pass
+        root.destroy()
+        sys.exit(0)
+
     root = tk.Tk()
     app = AgriLensApp(root)
     root.mainloop()
