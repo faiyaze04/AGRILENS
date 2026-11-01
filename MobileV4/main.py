@@ -71,6 +71,10 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
+# Application Version & Build Information
+APP_VERSION = "4.2.0"
+BUILD_TIMESTAMP = "2026-11-01 07:12:32 IST"
+
 # =============================================================================
 # 2. PATH DISCOVERY & SETTINGS
 # =============================================================================
@@ -903,9 +907,9 @@ class AgriLensApp:
     # ---- 1. Top Bar with Brand, Crop Filter, Admin & Gundecha Academy Logo ----
     def _build_school_logo(self, parent):
         px = self.px
-        logo_path = find_file("gundecha_logo.png")
+        logo_path = find_file(os.path.join("assets", "gundecha_logo.png"))
         if not os.path.exists(logo_path):
-            logo_path = find_file(os.path.join("assets", "gundecha_logo.png"))
+            logo_path = find_file("gundecha_logo.png")
 
         if os.path.exists(logo_path):
             try:
@@ -961,7 +965,9 @@ class AgriLensApp:
         # Header Title
         title_box = tk.Frame(top, bg=PANEL)
         title_box.pack(side="left", padx=px(10), fill="y")
-        tk.Label(title_box, text="AGRILENS", font=self.f(15, True), fg=WHITE, bg=PANEL).pack(anchor="w")
+        lbl_brand = tk.Label(title_box, text=f"AGRILENS v{APP_VERSION}", font=self.f(15, True), fg=WHITE, bg=PANEL, cursor="hand2")
+        lbl_brand.pack(anchor="w")
+        ToolTip(lbl_brand, "AGRILENS Edge Vision Kiosk", f"Version: v{APP_VERSION}\nBuild: {BUILD_TIMESTAMP}\nModel: MobileNetV4 ONNX (17 Classes)", font_family=FONT)
         tk.Label(title_box, text="AI Agricultural Health Diagnostics", font=self.f(8, True), fg=GREEN_ACCENT, bg=PANEL).pack(anchor="w")
 
         # Far Right: Official Gundecha Education Academy Logo
@@ -1455,8 +1461,8 @@ class AgriLensApp:
         )
         self.gh_btn.pack(pady=(0, px(4)))
         tk.Label(
-            card_sys, text="shreyuPRO/AGRILENS (Cloud Connected)",
-            font=self.f(8), fg=MUTED, bg=PANEL
+            card_sys, text=f"shreyuPRO/AGRILENS (v{APP_VERSION})\nBuild: {BUILD_TIMESTAMP}",
+            font=self.f(8), fg=MUTED, bg=PANEL, justify="center"
         ).pack(pady=(0, px(10)))
 
         # SEPARATOR
