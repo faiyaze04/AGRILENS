@@ -14,6 +14,8 @@ Features:
 import os
 import sys
 import json
+import glob
+import subprocess
 import platform
 import queue
 import random
@@ -398,16 +400,59 @@ class LeafQualityAI:
 
 
 # =============================================================================
-# 5. WEBCAM INTERFACE
+# 5. WEBCAM INTERFACE (Multi-Backend, High-Robustness Video Capture)
 # =============================================================================
 class Camera:
     def __init__(self):
         self.cap = None
         self.cv2 = None
         self.kind = "none"
+        self.port = -1
+        self.backend = "none"
+        self.fail_count = 0
+
+        # Silence noisy OpenCV C++ backend/obsensor log spam
+        try:
+            import cv2
+            self.cv2 = cv2
+            self.cv2.utils.logging.setLogLevel(self.cv2.utils.logging.LOG_LEVEL_ERROR)
+        except Exception:
+            pass
+
         self.detect_webcam()
 
+    def _query_device_names(self):
+        """Discovers friendly hardware device names on Windows & Linux."""
+        names = []
+        if sys.platform.startswith("win"):
+            try:
+                cmd = ["powershell", "-NoProfile", "-Command",
+                       "Get-PnpDevice -Class Camera -Status OK | Select-Object -ExpandProperty FriendlyName"]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                for line in res.stdout.splitlines():
+                    clean = line.strip()
+                    if clean and clean not in names:
+                        names.append(clean)
+            except Exception:
+                pass
+        elif sys.platform.startswith("linux"):
+            for p in sorted(glob.glob("/sys/class/video4linux/video*/name")):
+                try:
+                    with open(p, "r") as f:
+                        n = f.read().strip()
+                        if n and n not in names:
+                            names.append(n)
+                except Exception:
+                    pass
+        return names
+
     def detect_webcam(self):
+        """
+        High-robustness camera scanner using platform-optimized backend cascading:
+        - Windows: DirectShow (CAP_DSHOW) -> Media Foundation (CAP_MSMF) -> Default (CAP_ANY)
+        - Linux/RPi: Video4Linux2 (CAP_V4L2) -> Default (CAP_ANY)
+        Configures resolution, buffersize, and warm-up reads before locking connection.
+        """
         if self.cap:
             try:
                 self.cap.release()
@@ -415,48 +460,110 @@ class Camera:
                 pass
             self.cap = None
 
-        try:
-            import cv2
-            self.cv2 = cv2
-        except ImportError:
-            self.kind = "none"
-            return False, "OpenCV (cv2) is not installed."
-
-        for port in (0, 1, 2):
+        if self.cv2 is None:
             try:
-                c = self.cv2.VideoCapture(port)
-                if c.isOpened():
-                    ok, frame = c.read()
-                    if ok and frame is not None:
-                        c.set(self.cv2.CAP_PROP_FRAME_WIDTH, 640)
-                        c.set(self.cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                import cv2
+                self.cv2 = cv2
+                self.cv2.utils.logging.setLogLevel(self.cv2.utils.logging.LOG_LEVEL_ERROR)
+            except ImportError:
+                self.kind = "none"
+                return False, "OpenCV (cv2) is not installed."
+
+        device_names = self._query_device_names()
+
+        # Build prioritized backend list
+        if sys.platform.startswith("win"):
+            backends = [
+                ("DirectShow", self.cv2.CAP_DSHOW),
+                ("Media Foundation", self.cv2.CAP_MSMF),
+                ("Default", self.cv2.CAP_ANY)
+            ]
+        elif sys.platform.startswith("linux"):
+            backends = [
+                ("V4L2", self.cv2.CAP_V4L2),
+                ("Default", self.cv2.CAP_ANY)
+            ]
+        else:
+            backends = [("Default", self.cv2.CAP_ANY)]
+
+        # Probe ports with cascading backends
+        for b_name, b_id in backends:
+            for port in range(5):
+                try:
+                    c = self.cv2.VideoCapture(port, b_id)
+                    if not c.isOpened():
+                        continue
+
+                    # Configure 640x480 resolution & single-frame buffer before reading
+                    c.set(self.cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    c.set(self.cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    try:
+                        c.set(self.cv2.CAP_PROP_BUFFERSIZE, 1)
+                    except Exception:
+                        pass
+
+                    # Multi-frame warmup: Allow auto-exposure (AEC) and auto-gain (AGC) to stabilize
+                    ok, frame = False, None
+                    for _ in range(5):
+                        ok, frame = c.read()
+                        if ok and frame is not None and frame.size > 0:
+                            break
+                        time.sleep(0.035)
+
+                    if ok and frame is not None and frame.size > 0:
+                        h, w = frame.shape[:2]
+                        if port < len(device_names):
+                            dev_name = device_names[port]
+                        elif device_names:
+                            dev_name = device_names[0]
+                        else:
+                            dev_name = "USB Camera"
+
                         self.cap = c
-                        self.kind = f"USB Webcam (Port {port})"
-                        return True, f"Connected to {self.kind}"
+                        self.port = port
+                        self.backend = b_name
+                        self.kind = f"{dev_name} (Port {port}, {b_name}, {w}x{h})"
+                        self.fail_count = 0
+                        return True, f"Connected: {self.kind}"
+
                     c.release()
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
         self.kind = "none"
-        return False, "No webcam found. Please plug in your USB camera."
+        self.port = -1
+        self.backend = "none"
+        return False, "No active webcam found. Please plug in USB camera and click DETECT WEBCAM."
 
     def read(self):
+        """Reads the latest camera frame with fault-tolerance and dropped-signal handling."""
         if self.cap and self.cap.isOpened():
             try:
                 ok, frame = self.cap.read()
-                if ok and frame is not None:
+                if ok and frame is not None and frame.size > 0:
+                    self.fail_count = 0
                     rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
                     return Image.fromarray(rgb)
+                else:
+                    self.fail_count += 1
+                    if self.fail_count > 30:  # ~1 second of continuous frame drops
+                        self.close()
+                        self.kind = "none"
             except Exception:
-                pass
+                self.fail_count += 1
+                if self.fail_count > 30:
+                    self.close()
+                    self.kind = "none"
         return None
 
     def close(self):
+        """Safely releases the hardware camera handle."""
         if self.cap:
             try:
                 self.cap.release()
             except Exception:
                 pass
+            self.cap = None
 
 
 # =============================================================================
@@ -1537,10 +1644,11 @@ class AgriLensApp:
         )
 
     def open_admin_panel(self):
-        cam_text = self.camera.kind if (self.camera and self.camera.kind != "none") else "No Webcam Connected"
-        color = GREEN_PRIMARY if "USB" in cam_text else RED_ALERT
-        self.webcam_status_lbl.config(text=f"Current Status: {cam_text}", fg=color)
-        self.detect_msg_lbl.config(text="Plug in your USB webcam and click DETECT WEBCAM", fg=MUTED)
+        is_conn = (self.camera and self.camera.kind != "none")
+        cam_text = self.camera.kind if is_conn else "No Webcam Connected"
+        color = GREEN_PRIMARY if is_conn else RED_ALERT
+        self.webcam_status_lbl.config(text=f"Current Status:\n{cam_text}", fg=color)
+        self.detect_msg_lbl.config(text="Click DETECT WEBCAM to scan USB ports", fg=MUTED)
         self._revert_inline_guide()
         self.admin.place(x=0, y=0, relwidth=1, relheight=1)
         self.admin.lift()
@@ -1551,16 +1659,18 @@ class AgriLensApp:
 
         ok, msg = self.camera.detect_webcam()
         if ok:
-            self.webcam_status_lbl.config(text=f"Current Status: {self.camera.kind}", fg=GREEN_PRIMARY)
+            self.webcam_status_lbl.config(text=f"Connected:\n{self.camera.kind}", fg=GREEN_PRIMARY)
             self.detect_msg_lbl.config(text="SUCCESS: Webcam connected and active!", fg=GREEN_PRIMARY)
             self.canvas.itemconfig(self.msg_txt, text="")
+            self._update_stats_bar()
+            self.detect_btn.config(state="normal", text="DETECT WEBCAM")
+            self.root.after(750, self.close_overlays)
         else:
             self.webcam_status_lbl.config(text="Current Status: No Webcam Found", fg=RED_ALERT)
             self.detect_msg_lbl.config(text=msg, fg=RED_ALERT)
             self.canvas.itemconfig(self.msg_txt, text="No webcam connected.\nPlease check the USB camera connection.")
-
-        self.detect_btn.config(state="normal", text="DETECT WEBCAM")
-        self.close_overlays()
+            self._update_stats_bar()
+            self.detect_btn.config(state="normal", text="DETECT WEBCAM")
 
     def close_overlays(self):
         self.picker.place_forget()
@@ -1595,6 +1705,12 @@ class AgriLensApp:
             if frame is not None:
                 self.latest_frame = frame
                 self._show_image(frame)
+            elif self.camera.kind == "none":
+                self.canvas.itemconfig(
+                    self.msg_txt,
+                    text="Webcam disconnected.\nPlease check USB connection or click ADMIN."
+                )
+                self._update_stats_bar()
         self.root.after(int(1000 / PREVIEW_FPS), self._preview_loop)
 
     def _show_image(self, img):

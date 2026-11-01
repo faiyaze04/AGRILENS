@@ -30,7 +30,12 @@ This document chronicles all release builds, architecture updates, and UI enhanc
   - OOD Logit Gate Slider ($1.0 - 10.0$)
   - Leaf Sharpness Minimum Focus Slider ($10 - 150$)
 - **Configuration Persistence**: Live slider changes automatically saved to `kiosk_config.json`.
-- **Asset Sanitization**: Removed redundant intermediate test assets (`gea_header_badge.png`, `gundecha_badge.png`, `gundecha_logo_cropped.png`, `logo_thumb.png`, duplicate root `gundecha_logo.png`).
+- **Robust Webcam Detection Engine (DirectShow & V4L2 Cascading)**:
+  - Resolved Windows Media Foundation (MSMF) frame grabbing failure (`CvCapture_MSMF::grabFrame -1072873822`) by implementing platform-prioritized backend cascading: `cv2.CAP_DSHOW` (DirectShow) -> `cv2.CAP_MSMF` -> `cv2.CAP_ANY` on Windows, and `cv2.CAP_V4L2` -> `cv2.CAP_ANY` on Linux/Raspberry Pi.
+  - Eliminated OpenCV Orbbec sensor console warning spam (`obsensor_uvc_stream_channel.cpp Camera index out of range`) by setting OpenCV log level to `LOG_LEVEL_ERROR` and using explicit backends.
+  - Integrated friendly device hardware discovery via Windows PnP (`Get-PnpDevice`) and Linux sysfs, showing real device names (e.g. `C270 HD WEBCAM (Port 0, DirectShow, 640x480)`).
+  - Pre-configured 640x480 resolution and zero-lag single-frame buffer (`CAP_PROP_BUFFERSIZE = 1`) prior to stream initialization.
+  - Added multi-frame sensor warmup loop (5 reads with AGC/AEC stabilization) and automatic fault-tolerant recovery if a camera is disconnected.
 - **Build Metadata**: App version `4.2.0` and build date `2026-11-01 07:12:32 IST` displayed in title bar, header tooltip, and Admin system card.
 
 ---
