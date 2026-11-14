@@ -1,6 +1,6 @@
 {
-  "confidence_threshold": 0.65,
+  "confidence_threshold": 0.45,
   "ood_margin": 0.3,
   "ood_logit": 4.2,
-  "sharpness_min": 55.0
+  "sharpness_min": 75.0
 }
