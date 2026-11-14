@@ -11,6 +11,7 @@ Features:
 - Blue [ADMIN] Button with Webcam Detection and Close Application
 """
 
+import io
 import os
 import sys
 import json
@@ -26,19 +27,97 @@ import tkinter as tk
 import tkinter.font as tkFont
 from collections import deque
 
+# Automatically include Raspberry Pi OS system package paths in sys.path
+for _p in [
+    "/usr/lib/python3/dist-packages",
+    "/usr/local/lib/python3/dist-packages",
+    "/usr/lib/python3.13/dist-packages",
+    "/usr/lib/python3.11/dist-packages",
+]:
+    if os.path.exists(_p) and _p not in sys.path:
+        sys.path.append(_p)
+
+def _auto_install_package(import_name, pip_name=None):
+    if pip_name is None:
+        pip_name = import_name
+    try:
+        return __import__(import_name)
+    except ImportError:
+        print(f"[AGRILENS] Missing '{pip_name}'. Auto-installing for {sys.executable}...")
+        for cmd in [
+            [sys.executable, "-m", "pip", "install", pip_name, "--break-system-packages"],
+            [sys.executable, "-m", "pip", "install", pip_name],
+        ]:
+            try:
+                subprocess.check_call(cmd)
+                print(f"[AGRILENS] Successfully installed '{pip_name}'.")
+                return __import__(import_name)
+            except Exception:
+                pass
+        return None
+
+# Resilient Pillow & ImageTk import (supports Pillow 7.x through 13.x+, Windows & Raspberry Pi OS)
 try:
-    from PIL import Image, ImageOps, ImageTk, ImageDraw
+    from PIL import Image, ImageOps, ImageDraw, ImageEnhance
 except ImportError:
-    raise SystemExit(
-        "Pillow is missing!\n"
-        "PC (Thonny): Tools -> Manage packages... -> install 'pillow'\n"
-        "Raspberry Pi: sudo apt install -y python3-pil python3-pil.imagetk"
-    )
+    _auto_install_package("PIL", "pillow")
+    try:
+        from PIL import Image, ImageOps, ImageDraw, ImageEnhance
+    except ImportError:
+        raise SystemExit(
+            "Pillow is missing!\n"
+            "PC / Windows: Tools -> Manage packages... -> install 'pillow' (or pip install pillow)\n"
+            "Raspberry Pi: sudo apt install -y python3-pil python3-pil.imagetk"
+        )
+
+# Resampling compatibility across all Pillow versions (<9.1, 9.x, 10+, 13+)
+_RESAMPLE_ENUM = getattr(Image, "Resampling", Image)
+RESAMPLE_BILINEAR = getattr(_RESAMPLE_ENUM, "BILINEAR", getattr(Image, "BILINEAR", 2))
+RESAMPLE_LANCZOS = getattr(_RESAMPLE_ENUM, "LANCZOS", getattr(Image, "ANTIALIAS", 1))
+RESAMPLE = RESAMPLE_BILINEAR
+
+# Resilient ImageTk wrapper with native Tkinter fallback (fixes missing _imagingtk C module on Linux)
+try:
+    from PIL import ImageTk as _PIL_ImageTk
+    from PIL import _imagingtk  # noqa: F401
+    _HAS_IMAGINGTK = True
+except Exception:
+    _PIL_ImageTk = None
+    _HAS_IMAGINGTK = False
+
+
+class ImageTk:
+    """Drop-in replacement for PIL.ImageTk that works with or without the _imagingtk C module."""
+    @staticmethod
+    def PhotoImage(image=None, **kwargs):
+        if _HAS_IMAGINGTK and _PIL_ImageTk is not None:
+            try:
+                return _PIL_ImageTk.PhotoImage(image, **kwargs)
+            except Exception:
+                pass
+        if image is not None:
+            bio = io.BytesIO()
+            image.save(bio, format="PNG", compress_level=1)
+            return tk.PhotoImage(data=bio.getvalue(), **kwargs)
+        return tk.PhotoImage(**kwargs)
 
 try:
     import numpy as np
 except ImportError:
-    np = None
+    _auto_install_package("numpy", "numpy")
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+
+try:
+    import cv2
+except ImportError:
+    _auto_install_package("cv2", "opencv-python")
+    try:
+        import cv2
+    except ImportError:
+        cv2 = None
 
 # =============================================================================
 # 1. COLOR THEME (Dark Theme with Green, White & Red Accents)
@@ -103,41 +182,156 @@ MODEL_PATH = find_file("agrilens.onnx")
 LABELS_PATH = find_file("labels.txt")
 
 # Calibrated confidence & Out-Of-Distribution (OOD) rejection thresholds
-CONFIDENCE_THRESHOLD = 0.65  # Minimum positive identification threshold (65%)
-OOD_MARGIN_THRESHOLD = 0.30  # Minimum gap between 1st and 2nd class
-OOD_LOGIT_THRESHOLD  = 4.20  # Minimum raw logit activation for supported crops
-SHARPNESS_MIN_THRESHOLD = 55.0  # Minimum spatial Laplacian focus sharpness variance
+CONFIDENCE_THRESHOLD = 0.50  # Minimum positive identification threshold (50%)
+OOD_MARGIN_THRESHOLD = 0.18  # Minimum gap between 1st and 2nd class
+OOD_LOGIT_THRESHOLD  = 2.00  # Minimum raw logit activation for supported crops
+SHARPNESS_MIN_THRESHOLD = 35.0  # Minimum spatial Laplacian focus sharpness variance
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kiosk_config.json") if "__file__" in globals() else "kiosk_config.json"
+USER_CONFIG_PATH = os.path.expanduser("~/.agrilens_kiosk_config.json")
 DEFAULT_CONFIG = {
     "confidence_threshold": CONFIDENCE_THRESHOLD,
     "ood_margin": OOD_MARGIN_THRESHOLD,
     "ood_logit": OOD_LOGIT_THRESHOLD,
     "sharpness_min": SHARPNESS_MIN_THRESHOLD,
+    "cam_contrast": 100,
+    "cam_brightness": 0,
+    "cam_saturation": 100,
+    "cam_sharpness": 100,
+    "cam_wb_temp": 0,
+    "cam_zoom": 100,
+    "cam_flip_h": False,
+    "cam_flip_v": False,
+    "cam_auto_exp": True,
+    "cam_auto_wb": True,
 }
+
+def _clamp_num(val, default, lo, hi, as_int=False):
+    try:
+        v = float(val)
+        v = max(float(lo), min(float(hi), v))
+        return int(round(v)) if as_int else v
+    except Exception:
+        return int(default) if as_int else float(default)
+
 
 def load_kiosk_config():
     cfg = dict(DEFAULT_CONFIG)
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    cfg.update(data)
-        except Exception as e:
-            print(f"Notice: loading default config ({e})")
+    for path in (CONFIG_PATH, USER_CONFIG_PATH):
+        if path and os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        cfg.update(data)
+            except Exception as e:
+                print(f"Notice: loading config from {path} ({e})")
+
+    # Sanitize & clamp loaded parameters so corrupted JSON values never break startup
+    cfg["confidence_threshold"] = _clamp_num(cfg.get("confidence_threshold"), CONFIDENCE_THRESHOLD, 0.30, 0.95)
+    cfg["ood_margin"] = _clamp_num(cfg.get("ood_margin"), OOD_MARGIN_THRESHOLD, 0.10, 0.60)
+    cfg["ood_logit"] = _clamp_num(cfg.get("ood_logit"), OOD_LOGIT_THRESHOLD, 1.00, 6.50)
+    cfg["sharpness_min"] = _clamp_num(cfg.get("sharpness_min"), SHARPNESS_MIN_THRESHOLD, 20.0, 120.0)
+
+    # Auto-migrate legacy overly-strict thresholds (0.65 / 0.30 / 4.20) in ~/.agrilens_kiosk_config.json
+    if cfg["ood_logit"] >= 4.0 and cfg["confidence_threshold"] >= 0.64:
+        cfg["confidence_threshold"] = CONFIDENCE_THRESHOLD
+        cfg["ood_margin"] = OOD_MARGIN_THRESHOLD
+        cfg["ood_logit"] = OOD_LOGIT_THRESHOLD
+        cfg["sharpness_min"] = SHARPNESS_MIN_THRESHOLD
+
+    cfg["cam_contrast"] = _clamp_num(cfg.get("cam_contrast"), 100, 50, 200, as_int=True)
+    cfg["cam_brightness"] = _clamp_num(cfg.get("cam_brightness"), 0, -50, 50, as_int=True)
+    cfg["cam_saturation"] = _clamp_num(cfg.get("cam_saturation"), 100, 0, 200, as_int=True)
+    cfg["cam_sharpness"] = _clamp_num(cfg.get("cam_sharpness"), 100, 50, 250, as_int=True)
+    cfg["cam_wb_temp"] = _clamp_num(cfg.get("cam_wb_temp"), 0, -50, 50, as_int=True)
+    cfg["cam_zoom"] = _clamp_num(cfg.get("cam_zoom"), 100, 100, 200, as_int=True)
+    for bkey, bdef in (("cam_flip_h", False), ("cam_flip_v", False), ("cam_auto_exp", True), ("cam_auto_wb", True)):
+        val = cfg.get(bkey, bdef)
+        cfg[bkey] = val if isinstance(val, bool) else bdef
     return cfg
 
 def save_kiosk_config(cfg):
+    for path in (USER_CONFIG_PATH, CONFIG_PATH):
+        if not path:
+            continue
+        try:
+            if os.path.exists(path):
+                try:
+                    os.chmod(path, 0o666)
+                except Exception:
+                    pass
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Notice: unable to save kiosk config to {path} ({e})")
+
+def ensure_rpi_autostart():
+    """
+    Automatically registers AGRILENS to launch immediately on Raspberry Pi boot
+    (zero-delay XDG + Wayfire/Labwc compositor autostart) to skip showing the home screen.
+    """
+    if platform.system() != "Linux" or "__file__" not in globals():
+        return
     try:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2)
+        script_path = os.path.abspath(__file__)
+        script_dir = os.path.dirname(script_path)
+        py_exe = sys.executable or "/usr/bin/python3"
+        launch_cmd = f"/bin/sh -c \"cd '{script_dir}' && '{py_exe}' '{script_path}'\""
+
+        # 1. XDG Autostart (launches automatically on desktop session start)
+        autostart_dir = os.path.expanduser("~/.config/autostart")
+        os.makedirs(autostart_dir, exist_ok=True)
+        desktop_file = os.path.join(autostart_dir, "agrilens.desktop")
+        content = (
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=AGRILENS Kiosk\n"
+            "Comment=AGRILENS AI Plant Health Kiosk Auto-Start\n"
+            f"Exec={launch_cmd}\n"
+            f"Path={script_dir}\n"
+            "Terminal=false\n"
+            "X-GNOME-Autostart-enabled=true\n"
+        )
+        with open(desktop_file, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.chmod(desktop_file, 0o755)
+
+        # Clean up any duplicate compositor autostart entries so only one instance launches on boot
+        wf_ini = os.path.expanduser("~/.config/wayfire.ini")
+        if os.path.exists(wf_ini):
+            try:
+                with open(wf_ini, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                cleaned = [ln for ln in lines if "agrilens_kiosk" not in ln]
+                if len(cleaned) != len(lines):
+                    with open(wf_ini, "w", encoding="utf-8") as f:
+                        f.writelines(cleaned)
+            except Exception:
+                pass
+
+        labwc_auto = os.path.expanduser("~/.config/labwc/autostart")
+        if os.path.exists(labwc_auto):
+            try:
+                with open(labwc_auto, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                cleaned = [ln for ln in lines if script_path not in ln]
+                if len(cleaned) != len(lines):
+                    with open(labwc_auto, "w", encoding="utf-8") as f:
+                        f.writelines(cleaned)
+            except Exception:
+                pass
     except Exception as e:
-        print(f"Notice: unable to save kiosk config ({e})")
+        print(f"Notice: autostart registration skipped ({e})")
 
 ADMIN_PASSWORD = "AGRILENS"
 PREVIEW_FPS = 25
-RESAMPLE = getattr(Image, "Resampling", Image).BILINEAR
+RESAMPLE = RESAMPLE_BILINEAR
 
 # =============================================================================
 # 3. FARMER RECOMMENDATIONS DATABASE
@@ -204,6 +398,12 @@ RECOMMENDATIONS = [
         "Apply organic neem oil extract or insecticidal soap every 5-7 days.",
         "Maintain regular irrigation; spider mites thrive in dry dusty heat.",
     ]),
+    (("target spot",), [
+        "Remove lower infected foliage to reduce fungal spore pressure.",
+        "Improve plant spacing and stake vines to boost canopy airflow.",
+        "Apply recommended protective fungicide (e.g., Chlorothalonil or Mancozeb).",
+        "Use drip irrigation and mulch to prevent soil splash onto lower leaves.",
+    ]),
     (("yellow leaf curl",), [
         "Viral infection transmitted by whiteflies. Plants cannot be cured.",
         "Uproot and bag diseased plants immediately to protect neighbors.",
@@ -251,13 +451,13 @@ UNSURE_STEPS = [
     "Check the Image Quality rating shown below the camera view.",
     "Hold one single leaf flat and fully centered inside the green box.",
     "Make sure lighting is even and there is no harsh direct glare or shadow.",
-    "Auto mode is in Beta Production. Tap 'SELECT PLANT' to focus on your crop.",
+    "Auto mode is in Beta Production. Tap 'SELECT CROP' to focus on your crop.",
 ]
 
 OOD_STEPS = [
-    "This leaf does not match features of supported crops (Apple, Mango, Tomato).",
+    "This leaf does not match features of supported crops (Apple, Mango, Potato, Tomato).",
     "Non-target plants (e.g. money plant, ornamental flora, weeds) are outside catalog.",
-    "If diagnosing a supported crop, tap 'SELECT PLANT' to lock your target crop.",
+    "If diagnosing a supported crop, tap 'SELECT CROP' to lock your target crop.",
     "To support this plant species, add it to the dataset and retrain the model.",
 ]
 
@@ -278,14 +478,124 @@ def get_recommendation(crop, condition):
 
 def parse_label(label):
     clean = label.strip()
+    while "__" in clean:
+        clean = clean.replace("__", "_")
     healthy = "healthy" in clean.lower()
-    for sep in ("___", "__", " - ", ": "):
+    if ("other" in clean.lower()) or ("background" in clean.lower()):
+        return "", clean.replace("_", " ").title(), False
+    for sep in (" - ", ": ", "_"):
         if sep in clean:
             parts = clean.split(sep, 1)
             crop = parts[0].replace("_", " ").title().strip()
             cond = parts[1].replace("_", " ").title().strip()
             return crop, cond, healthy
     return "", clean.replace("_", " ").title(), healthy
+
+
+# =============================================================================
+# 3.5. LEAF REGION DETECTION & SMART ROI EXTRACTION ENGINE
+# =============================================================================
+class LeafOutlineSegmenter:
+    """
+    Non-destructive Leaf ROI detector optimized for both real leaves and mobile screen testing:
+    - Detects foliage & leaf regions using Excess Green (ExG), HSV color saturation, and Canny edges.
+    - Rejects outer frame borders (such as mobile phone bezels or dark room edges).
+    - Preserves natural background context inside the cropped square ROI (does NOT paint #000000 black
+      masks that distort MobileNetV4 convolutional filters).
+    - Graceful fallback: If the leaf already fills the frame or no sub-region is isolated,
+      uses the complete image without alteration.
+    """
+    @staticmethod
+    def extract_leaf(pil_image, min_area_ratio=0.06, max_area_ratio=0.65):
+        if pil_image is None:
+            return None, False, {"msg": "Camera frame not available."}
+        if np is None or cv2 is None:
+            return pil_image, False, {"msg": "OpenCV/NumPy unavailable, using complete image."}
+
+        try:
+            orig_np = np.array(pil_image.convert("RGB"))
+            h, w = orig_np.shape[:2]
+            total_area = float(w * h)
+
+            # 1. Compute foliage / leaf color mask (Excess Green + HSV green/yellow-green leaf range)
+            r = orig_np[:, :, 0].astype(np.float32)
+            g = orig_np[:, :, 1].astype(np.float32)
+            b = orig_np[:, :, 2].astype(np.float32)
+            exg = 2.0 * g - r - b
+            green_dom = g - 0.55 * r - 0.45 * b
+
+            hsv = cv2.cvtColor(orig_np, cv2.COLOR_RGB2HSV)
+            hue = hsv[:, :, 0]
+            sat = hsv[:, :, 1]
+            val = hsv[:, :, 2]
+
+            # Exclude warm skin/wood/indoor walls (Hue < 24 unless G > R) while supporting blue-lit phone screens
+            is_foliage = (
+                ((exg > 10.0) & (g > 28.0))
+                | ((green_dom > 6.0) & (g > r) & (val > 35))
+                | ((hue >= 24) & (hue <= 102) & (sat >= 32) & (val >= 30) & (val <= 248))
+            )
+            foliage_mask = np.where(is_foliage, 255, 0).astype(np.uint8)
+
+            # Zero out outer 4% border so a dark phone bezel or screen frame doesn't bridge across the image
+            bh_pad, bw_pad = max(2, int(h * 0.04)), max(2, int(w * 0.04))
+            foliage_mask[:bh_pad, :] = 0
+            foliage_mask[h - bh_pad:, :] = 0
+            foliage_mask[:, :bw_pad] = 0
+            foliage_mask[:, w - bw_pad:] = 0
+
+            kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+            closed = cv2.morphologyEx(foliage_mask, cv2.MORPH_CLOSE, kernel_close)
+
+            contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                return pil_image, False, {"msg": "Full frame used for diagnosis.", "area_ratio": 1.0}
+
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)
+            best_cnt = None
+            best_area = 0.0
+
+            for cnt in contours:
+                area = float(cv2.contourArea(cnt))
+                ratio = area / total_area
+                if ratio < min_area_ratio:
+                    continue
+                if ratio > max_area_ratio:
+                    # Leaf or screen already fills a large portion of the frame -> keep full frame intact
+                    # so multi-scale square center crops in Classifier.predict() preserve full leaf context!
+                    return pil_image, True, {
+                        "msg": f"Leaf fills frame ({ratio * 100:.1f}% area).",
+                        "area_ratio": ratio,
+                        "bbox": (0, 0, w, h)
+                    }
+                best_cnt = cnt
+                best_area = area
+                break
+
+            if best_cnt is None:
+                return pil_image, False, {"msg": "Full frame used for diagnosis.", "area_ratio": 1.0}
+
+            # Crop a clean square bounding box around the detected leaf with generous 1.45x context margin
+            # so outer leaf edges and brown/yellow necrotic lesions are never clipped off
+            bx, by, bw, bh = cv2.boundingRect(best_cnt)
+            cx = bx + bw // 2
+            cy = by + bh // 2
+            side = int(max(bw, bh) * 1.45)
+            side = max(min(w, h) // 2, min(side, min(w, h)))
+
+            x0 = max(0, min(w - side, cx - side // 2))
+            y0 = max(0, min(h - side, cy - side // 2))
+            cropped_np = orig_np[y0:y0 + side, x0:x0 + side]
+            result_pil = Image.fromarray(cropped_np)
+
+            return result_pil, True, {
+                "msg": f"Leaf ROI focused ({best_area / total_area * 100:.1f}% area).",
+                "area_ratio": best_area / total_area,
+                "bbox": (x0, y0, side, side)
+            }
+
+        except Exception as e:
+            return pil_image, False, {"msg": f"Full frame used ({e}).", "area_ratio": 1.0}
 
 
 # =============================================================================
@@ -404,6 +714,7 @@ class LeafQualityAI:
 # =============================================================================
 class Camera:
     def __init__(self, auto_detect=True):
+        self._lock = threading.Lock()
         self.cap = None
         self.cv2 = None
         self.kind = "none"
@@ -413,6 +724,19 @@ class Camera:
         self.height = 480
         self.device_name = "USB Camera"
         self.fail_count = 0
+
+        # USB Hardware + ISP Parameters
+        self.contrast = 100      # 50% to 200% (100% = neutral)
+        self.brightness = 0      # -50% to +50% (0% = neutral)
+        self.saturation = 100    # 0% to 200% (100% = neutral)
+        self.sharpness = 100     # 50% to 250% (100% = neutral)
+        self.wb_temp = 0         # -50 (Cool) to +50 (Warm) (0 = neutral)
+        self.zoom = 100          # 100% (1.0x) to 200% (2.0x Macro Zoom)
+        self.flip_h = False      # Mirror horizontally
+        self.flip_v = False      # Flip vertically (180 deg)
+        self.auto_exp = True     # USB UVC Auto-Exposure + Backlight Compensation
+        self.auto_wb = True      # USB UVC Auto White Balance
+        self.focus_peaking = False  # Neon edge highlight for Manual Focus Mod
 
         # Silence noisy OpenCV C++ backend/obsensor log spam
         try:
@@ -462,112 +786,262 @@ class Camera:
         - Linux/RPi: Video4Linux2 (CAP_V4L2) -> Default (CAP_ANY)
         Configures resolution, buffersize, and warm-up reads before locking connection.
         """
-        if self.cap:
-            try:
-                self.cap.release()
-            except Exception:
-                pass
-            self.cap = None
-
-        if self.cv2 is None:
-            try:
-                import cv2
-                self.cv2 = cv2
-                self.cv2.utils.logging.setLogLevel(self.cv2.utils.logging.LOG_LEVEL_ERROR)
-            except ImportError:
-                self.kind = "none"
-                return False, "OpenCV (cv2) is not installed."
-
-        # Build prioritized backend list
-        if sys.platform.startswith("win"):
-            backends = [
-                ("DirectShow", self.cv2.CAP_DSHOW),
-                ("Default", self.cv2.CAP_ANY)
-            ]
-        elif sys.platform.startswith("linux"):
-            backends = [
-                ("V4L2", self.cv2.CAP_V4L2),
-                ("Default", self.cv2.CAP_ANY)
-            ]
-        else:
-            backends = [("Default", self.cv2.CAP_ANY)]
-
-        # Probe ports with cascading backends (ports 0, 1, 2)
-        for b_name, b_id in backends:
-            for port in range(3):
+        with self._lock:
+            if self.cap:
                 try:
-                    c = self.cv2.VideoCapture(port, b_id)
-                    if not c.isOpened():
-                        continue
+                    self.cap.release()
+                except Exception:
+                    pass
+                self.cap = None
 
-                    # Configure 640x480 resolution & single-frame buffer before reading
-                    c.set(self.cv2.CAP_PROP_FRAME_WIDTH, 640)
-                    c.set(self.cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            if self.cv2 is None:
+                try:
+                    import cv2
+                    self.cv2 = cv2
+                    self.cv2.utils.logging.setLogLevel(self.cv2.utils.logging.LOG_LEVEL_ERROR)
+                except ImportError:
+                    self.kind = "none"
+                    return False, "OpenCV (cv2) is not installed."
+
+            # Build prioritized backend list
+            if sys.platform.startswith("win"):
+                backends = [
+                    ("DirectShow", self.cv2.CAP_DSHOW),
+                    ("Default", self.cv2.CAP_ANY)
+                ]
+            elif sys.platform.startswith("linux"):
+                backends = [
+                    ("V4L2", self.cv2.CAP_V4L2),
+                    ("Default", self.cv2.CAP_ANY)
+                ]
+            else:
+                backends = [("Default", self.cv2.CAP_ANY)]
+
+            # Probe ports with cascading backends (ports 0, 1, 2)
+            for b_name, b_id in backends:
+                for port in range(3):
                     try:
-                        c.set(self.cv2.CAP_PROP_BUFFERSIZE, 1)
+                        c = self.cv2.VideoCapture(port, b_id)
+                        if not c.isOpened():
+                            continue
+
+                        # Configure 640x480 resolution & single-frame buffer before reading
+                        c.set(self.cv2.CAP_PROP_FRAME_WIDTH, 640)
+                        c.set(self.cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                        try:
+                            c.set(self.cv2.CAP_PROP_BUFFERSIZE, 1)
+                        except Exception:
+                            pass
+
+                        # Multi-frame warmup: Allow auto-exposure (AEC) and auto-gain (AGC) to stabilize
+                        ok, frame = False, None
+                        for _ in range(4):
+                            ok, frame = c.read()
+                            if ok and frame is not None and frame.size > 0:
+                                break
+                            time.sleep(0.025)
+
+                        if ok and frame is not None and frame.size > 0:
+                            h, w = frame.shape[:2]
+                            self.cap = c
+                            self.port = port
+                            self.backend = b_name
+                            self.width = w
+                            self.height = h
+                            self.device_name = "USB Camera"
+                            self.kind = f"USB Camera (Port {port}, {b_name}, {w}x{h})"
+                            self.fail_count = 0
+                            break
+
+                        c.release()
+                    except Exception:
+                        pass
+                if self.cap is not None:
+                    break
+
+            if self.cap is None:
+                self.kind = "none"
+                self.port = -1
+                self.backend = "none"
+                return False, "No active webcam found. Please plug in USB camera and click DETECT WEBCAM."
+
+        # Apply USB hardware controls & query friendly model name outside the lock
+        self.apply_hardware_controls()
+        self._fetch_friendly_names_async()
+        return True, f"Connected: {self.kind}"
+
+    def apply_hardware_controls(self):
+        """Pushes UVC hardware parameters (Auto-Exposure, 50Hz Anti-Flicker, Auto-WB) over USB."""
+        if not self.cap or self.cv2 is None:
+            return
+        port = self.port
+        auto_exp = self.auto_exp
+        auto_wb = self.auto_wb
+        wb_kelvin = int(4500 + self.wb_temp * 34)
+
+        def _hw_worker():
+            with self._lock:
+                if self.cap and self.cap.isOpened() and self.cv2 is not None:
+                    try:
+                        if hasattr(self.cv2, "CAP_PROP_AUTO_EXPOSURE"):
+                            # V4L2 UVC: 3 = Aperture Priority (Auto), 1 = Manual
+                            self.cap.set(self.cv2.CAP_PROP_AUTO_EXPOSURE, 3 if auto_exp else 1)
+                        if hasattr(self.cv2, "CAP_PROP_BACKLIGHT"):
+                            self.cap.set(self.cv2.CAP_PROP_BACKLIGHT, 1 if auto_exp else 0)
+                        if hasattr(self.cv2, "CAP_PROP_AUTO_WB"):
+                            self.cap.set(self.cv2.CAP_PROP_AUTO_WB, 1 if auto_wb else 0)
+                        if not auto_wb and hasattr(self.cv2, "CAP_PROP_WB_TEMPERATURE"):
+                            self.cap.set(self.cv2.CAP_PROP_WB_TEMPERATURE, wb_kelvin)
                     except Exception:
                         pass
 
-                    # Multi-frame warmup: Allow auto-exposure (AEC) and auto-gain (AGC) to stabilize
-                    ok, frame = False, None
-                    for _ in range(4):
-                        ok, frame = c.read()
-                        if ok and frame is not None and frame.size > 0:
-                            break
-                        time.sleep(0.025)
+            if sys.platform.startswith("linux") and port >= 0:
+                dev = f"/dev/video{port}"
+                exp_val = 3 if auto_exp else 1
+                bl_val = 1 if auto_exp else 0
+                awb_val = 1 if auto_wb else 0
+                cmds = [
+                    ["v4l2-ctl", "-d", dev, "-c", f"power_line_frequency=1,exposure_auto={exp_val},backlight_compensation={bl_val},white_balance_temperature_auto={awb_val}"],
+                ]
+                if not auto_wb:
+                    cmds.append(["v4l2-ctl", "-d", dev, "-c", f"white_balance_temperature={wb_kelvin}"])
+                for cmd in cmds:
+                    try:
+                        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1)
+                    except Exception:
+                        pass
 
-                    if ok and frame is not None and frame.size > 0:
-                        h, w = frame.shape[:2]
-                        self.cap = c
-                        self.port = port
-                        self.backend = b_name
-                        self.width = w
-                        self.height = h
-                        self.device_name = "USB Camera"
-                        self.kind = f"USB Camera (Port {port}, {b_name}, {w}x{h})"
-                        self.fail_count = 0
-                        # Query friendly hardware model name asynchronously in background
-                        self._fetch_friendly_names_async()
-                        return True, f"Connected: {self.kind}"
+        threading.Thread(target=_hw_worker, daemon=True).start()
 
-                    c.release()
-                except Exception:
-                    pass
+    def _apply_isp(self, img):
+        """Real-time Image Signal Processing (ISP) pipeline for USB frames."""
+        try:
+            # 1. Orientation Flips (Mirror / 180 Vertical Flip)
+            if self.flip_h:
+                img = img.transpose(getattr(Image, "Transpose", Image).FLIP_LEFT_RIGHT)
+            if self.flip_v:
+                img = img.transpose(getattr(Image, "Transpose", Image).FLIP_TOP_BOTTOM)
 
-        self.kind = "none"
-        self.port = -1
-        self.backend = "none"
-        return False, "No active webcam found. Please plug in USB camera and click DETECT WEBCAM."
+            # 2. Macro Digital Zoom (100% = 1.0x to 200% = 2.0x center crop)
+            if self.zoom > 102:
+                w, h = img.size
+                zf = max(1.0, min(2.0, self.zoom / 100.0))
+                cw, ch = max(16, int(w / zf)), max(16, int(h / zf))
+                x0 = (w - cw) // 2
+                y0 = (h - ch) // 2
+                img = img.crop((x0, y0, x0 + cw, y0 + ch)).resize((w, h), RESAMPLE)
+
+            # 3. White Balance Warmth Tint (-50 Cool to +50 Warm)
+            if abs(self.wb_temp) >= 2 and np is not None:
+                arr = np.asarray(img, dtype=np.int16)
+                shift = int(self.wb_temp * 0.9)
+                arr[:, :, 0] = np.clip(arr[:, :, 0] + shift, 0, 255)   # Red warmth
+                arr[:, :, 2] = np.clip(arr[:, :, 2] - shift, 0, 255)   # Blue coolness
+                img = Image.fromarray(arr.astype(np.uint8))
+
+            # 4. Brightness (-50% to +50% -> factor 0.50 to 1.50)
+            if abs(self.brightness) >= 1:
+                bf = max(0.3, 1.0 + (self.brightness / 100.0))
+                img = ImageEnhance.Brightness(img).enhance(bf)
+
+            # 5. Contrast (50% to 200% -> factor 0.50 to 2.00)
+            if abs(self.contrast - 100) >= 1:
+                cf = max(0.3, self.contrast / 100.0)
+                img = ImageEnhance.Contrast(img).enhance(cf)
+
+            # 6. Saturation / Color Vibrancy (0% to 200% -> factor 0.00 to 2.00)
+            if abs(self.saturation - 100) >= 1:
+                sf = max(0.0, self.saturation / 100.0)
+                img = ImageEnhance.Color(img).enhance(sf)
+
+            # 7. Sharpness / Leaf Vein Detail (50% to 250% -> factor 0.50 to 2.50)
+            if abs(self.sharpness - 100) >= 2:
+                shf = max(0.2, self.sharpness / 100.0)
+                img = ImageEnhance.Sharpness(img).enhance(shf)
+        except Exception:
+            pass
+        return img
+
+    def compute_focus_metric(self, img):
+        """Computes real-time focus sharpness (0-100%) for calibrating the manual focus ring."""
+        if np is None or img is None:
+            return 75, 50.0
+        try:
+            small = img.resize((240, 180), RESAMPLE)
+            arr = np.asarray(small, dtype=np.float32)
+            gray = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+            h, w = gray.shape
+            c = gray[int(h * 0.15):int(h * 0.85), int(w * 0.15):int(w * 0.85)]
+            lap = (
+                -4.0 * c[1:-1, 1:-1]
+                + c[:-2, 1:-1] + c[2:, 1:-1]
+                + c[1:-1, :-2] + c[1:-1, 2:]
+            )
+            lap_var = float(np.var(lap))
+            pct = int(max(5, min(100, (lap_var / 140.0) * 100.0)))
+            return pct, lap_var
+        except Exception:
+            return 70, 50.0
+
+    def render_focus_peaking(self, img):
+        """Highlights razor-sharp leaf veins/edges in neon green when twisting the manual focus ring."""
+        if not self.focus_peaking or np is None or img is None:
+            return img
+        try:
+            arr = np.asarray(img, dtype=np.uint8).copy()
+            gray = (0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]).astype(np.float32)
+            gx = np.abs(gray[:, 2:] - gray[:, :-2])[1:-1, :]
+            gy = np.abs(gray[2:, :] - gray[:-2, :])[:, 1:-1]
+            mag = gx + gy
+            mask = mag > 42.0
+            sub = arr[1:-1, 1:-1]
+            sub[mask] = [0, 255, 110]
+            return Image.fromarray(arr)
+        except Exception:
+            return img
 
     def read(self):
-        """Reads the latest camera frame with fault-tolerance and dropped-signal handling."""
-        if self.cap and self.cap.isOpened():
+        """Reads the latest camera frame, applies ISP controls, and handles dropped signals."""
+        with self._lock:
+            if not self.cap or not self.cap.isOpened():
+                return None
             try:
                 ok, frame = self.cap.read()
                 if ok and frame is not None and frame.size > 0:
                     self.fail_count = 0
                     rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
-                    return Image.fromarray(rgb)
                 else:
                     self.fail_count += 1
                     if self.fail_count > 30:  # ~1 second of continuous frame drops
-                        self.close()
+                        try:
+                            self.cap.release()
+                        except Exception:
+                            pass
+                        self.cap = None
                         self.kind = "none"
+                    return None
             except Exception:
                 self.fail_count += 1
                 if self.fail_count > 30:
-                    self.close()
+                    try:
+                        self.cap.release()
+                    except Exception:
+                        pass
+                    self.cap = None
                     self.kind = "none"
-        return None
+                return None
+        pil_img = Image.fromarray(rgb)
+        return self._apply_isp(pil_img)
 
     def close(self):
         """Safely releases the hardware camera handle."""
-        if self.cap:
-            try:
-                self.cap.release()
-            except Exception:
-                pass
-            self.cap = None
+        with self._lock:
+            if self.cap:
+                try:
+                    self.cap.release()
+                except Exception:
+                    pass
+                self.cap = None
 
 
 # =============================================================================
@@ -596,24 +1070,25 @@ class Classifier:
                     clean = []
                     for line in lines:
                         parts = line.split(maxsplit=1)
-                        if len(parts) == 2 and parts[0].isdigit():
-                            clean.append(parts[1])
-                        else:
-                            clean.append(line)
+                        lbl = parts[1] if (len(parts) == 2 and parts[0].isdigit()) else line
+                        while "__" in lbl:
+                            lbl = lbl.replace("__", "_")
+                        clean.append(lbl)
                     if clean:
                         return clean
             except Exception as e:
                 print("Labels load error:", e)
 
         return [
-            "Apple___Rust", "Apple___Scab", "Apple___healthy",
-            "Mango___Anthracnose", "Mango___Bacterial_Canker", "Mango___Cutting_Weevil",
-            "Mango___Die_Back", "Mango___Gall_Midge", "Mango___Healthy",
-            "Mango___Powdery_Mildew", "Mango___Sooty_Mould",
-            "Tomato___Bacterial_spot", "Tomato___Early_blight", "Tomato___Late_blight",
-            "Tomato___Leaf_Mold", "Tomato___Septoria_leaf_spot",
-            "Tomato___Spider_mites_Two-spotted_spider_mite", "Tomato___Target_Spot",
-            "Tomato___Tomato_Yellow_Leaf_Curl_Virus", "Tomato___Tomato_mosaic_virus", "Tomato___healthy"
+            "Apple_Rust", "Apple_Scab", "Apple_healthy",
+            "Mango_Anthracnose", "Mango_Bacterial_Canker", "Mango_Cutting_Weevil",
+            "Mango_Die_Back", "Mango_Gall_Midge", "Mango_Healthy",
+            "Mango_Powdery_Mildew", "Mango_Sooty_Mould",
+            "Potato_Early_blight", "Potato_Late_blight", "Potato_healthy",
+            "Tomato_Bacterial_spot", "Tomato_Early_blight", "Tomato_Late_blight",
+            "Tomato_Leaf_Mold", "Tomato_Septoria_leaf_spot",
+            "Tomato_Spider_mites_Two_spotted_spider_mite", "Tomato_Target_Spot",
+            "Tomato_Tomato_YellowLeaf_Curl_Virus", "Tomato_Tomato_mosaic_virus", "Tomato_healthy"
         ]
 
     def _init_engine(self):
@@ -651,11 +1126,76 @@ class Classifier:
             self.mode = "ONNX (98.31%)"
             self.error_reason = ""
         except ImportError:
-            self.mode = "DEMO"
-            self.error_reason = "onnxruntime not installed in this Python"
+            _auto_install_package("onnxruntime", "onnxruntime")
+            try:
+                import onnxruntime as ort
+                opts = ort.SessionOptions()
+                opts.intra_op_num_threads = 4
+                self.session = ort.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
+                inp = self.session.get_inputs()[0]
+                self.input_name = inp.name
+                shape = []
+                for d in inp.shape:
+                    try:
+                        shape.append(int(d))
+                    except (ValueError, TypeError):
+                        shape.append(1)
+                self.input_shape = shape
+                if len(shape) == 4 and shape[1] in (1, 3):
+                    self.layout, self.h, self.w = "NCHW", shape[2], shape[3]
+                else:
+                    self.layout, self.h, self.w = "NHWC", shape[1], shape[2]
+                self.mode = "ONNX (98.31%)"
+                self.error_reason = ""
+            except Exception as e_retry:
+                self.mode = "DEMO"
+                self.error_reason = f"onnxruntime not installed ({e_retry})"
         except Exception as e:
             self.mode = "DEMO"
             self.error_reason = str(e)
+
+    def _prep_tensor(self, rgb_img):
+        img = ImageOps.fit(rgb_img, (self.w, self.h), RESAMPLE)
+        arr = np.asarray(img, dtype=np.float32) / 255.0
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        arr = (arr - mean) / std
+        if self.layout == "NCHW":
+            arr = np.transpose(arr, (2, 0, 1))
+        return arr
+
+    @staticmethod
+    def _dehaze_screen_glare(pil_img):
+        """
+        Compensates for optical washout, lifted black levels (glare), and blue OLED/LCD
+        backlight cast when photographing a mobile phone screen or under harsh ambient light,
+        while strictly preserving the leaf's R:G color ratio.
+        """
+        if np is None or pil_img is None:
+            return pil_img
+        try:
+            arr = np.asarray(pil_img.convert("RGB"), dtype=np.float32)
+            h, w = arr.shape[:2]
+            inner = arr[int(h * 0.12):int(h * 0.88), int(w * 0.12):int(w * 0.88)]
+            p_low = np.percentile(inner, 1.5, axis=(0, 1))
+            rg_floor = max(0.0, min(float(p_low[0]), float(p_low[1])) - 10.0) * 0.85
+            b_floor = max(rg_floor, (float(p_low[2]) - 10.0) * 0.88)
+            floor_vec = np.array([rg_floor, rg_floor, b_floor], dtype=np.float32)
+
+            shifted = np.maximum(0.0, arr - floor_vec)
+            inner_shifted = np.maximum(0.0, inner - floor_vec)
+
+            p_high_ch = np.percentile(inner_shifted, 99.2, axis=(0, 1))
+            rg_high = max(float(p_high_ch[0]), float(p_high_ch[1]), 45.0)
+            if float(p_high_ch[2]) > rg_high * 1.04:
+                shifted[:, :, 2] *= (rg_high / float(p_high_ch[2]))
+
+            scale = min(1.65, 248.0 / rg_high)
+            out = np.clip(shifted * scale, 0, 255).astype(np.uint8)
+            img = Image.fromarray(out)
+            return ImageEnhance.Sharpness(img).enhance(1.25)
+        except Exception:
+            return pil_img
 
     def predict(self, pil_image):
         t0 = time.perf_counter()
@@ -667,25 +1207,58 @@ class Classifier:
             probs = [1.0 / n] * n
             return probs, (time.perf_counter() - t0) * 1000, None
 
-        # Normalization (MobileNetV4 ImageNet: mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        img = ImageOps.fit(pil_image.convert("RGB"), (self.w, self.h), RESAMPLE)
-        arr = np.asarray(img, dtype=np.float32) / 255.0
-        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-        arr = (arr - mean) / std
+        rgb = pil_image.convert("RGB")
+        iw, ih = rgb.size
+        min_s = min(iw, ih)
 
-        if self.layout == "NCHW":
-            arr = np.transpose(arr, (2, 0, 1))
-        tensor = np.expand_dims(arr, axis=0)
+        # Multi-scale 1:1 square center views (100%, 76%, 58% of min_side) in both natural RGB
+        # and screen-glare-dehazed RGB to strip phone bezels and counter screen/ambient washout
+        views = []
+        scales = (1.0, 0.76, 0.58) if min_s >= 120 else (1.0,)
+        for scale in scales:
+            s = max(64, int(min_s * scale))
+            x0, y0 = (iw - s) // 2, (ih - s) // 2
+            sq = rgb.crop((x0, y0, x0 + s, y0 + s))
+            views.append(sq)
+            views.append(self._dehaze_screen_glare(sq))
 
-        # Run ONNX inference
-        raw_out = self.session.run(None, {self.input_name: tensor})[0][0]
-        # Softmax
-        exps = np.exp(raw_out - np.max(raw_out))
-        probs = (exps / np.sum(exps)).tolist()
+        batch_tensors = np.stack([self._prep_tensor(v) for v in views], axis=0)
+
+        try:
+            batch_out = self.session.run(None, {self.input_name: batch_tensors})[0]
+        except Exception:
+            batch_out = np.stack(
+                [self.session.run(None, {self.input_name: batch_tensors[i:i+1]})[0][0] for i in range(len(views))],
+                axis=0
+            )
+
+        best_probs = None
+        best_raw = None
+        best_score = -1e9
+
+        neg_indices = {
+            i for i, lbl in enumerate(self.labels)
+            if ("other" in lbl.lower()) or ("background" in lbl.lower())
+        }
+
+        for i in range(len(batch_out)):
+            r_out = batch_out[i]
+            exps = np.exp(r_out - np.max(r_out))
+            p_vec = exps / np.sum(exps)
+
+            # Score by strongest non-negative crop probability AND raw neural logit energy
+            plant_probs = [p_vec[j] for j in range(len(p_vec)) if j not in neg_indices]
+            plant_logits = [r_out[j] for j in range(len(r_out)) if j not in neg_indices]
+            max_plant_p = float(max(plant_probs)) if plant_probs else float(np.max(p_vec))
+            max_plant_l = float(max(plant_logits)) if plant_logits else float(np.max(r_out))
+            score = max_plant_p + 0.08 * min(8.0, max(0.0, max_plant_l)) + (0.03 if i < 4 else 0.0)
+            if score > best_score:
+                best_score = score
+                best_probs = p_vec.tolist()
+                best_raw = r_out
 
         ms = (time.perf_counter() - t0) * 1000
-        return probs, ms, raw_out
+        return best_probs, ms, best_raw
 
 
 # =============================================================================
@@ -772,13 +1345,15 @@ class RoundedButton(tk.Canvas):
         key = (self.width, self.height, self.radius, fill, self.border_color, self.border_width, self.parent_bg)
         if key in self._cache:
             return self._cache[key]
+        if len(self._cache) > 256:
+            self._cache.clear()
         scale = 3
         sw, sh, sr = self.width * scale, self.height * scale, self.radius * scale
         im = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
         d = ImageDraw.Draw(im)
         d.rounded_rectangle([0, 0, sw - 1, sh - 1], radius=sr, fill=fill,
                             outline=self.border_color, width=self.border_width * scale if self.border_color else 0)
-        res = im.resize((self.width, self.height), Image.Resampling.LANCZOS)
+        res = im.resize((self.width, self.height), RESAMPLE_LANCZOS)
         photo = ImageTk.PhotoImage(res)
         self._cache[key] = photo
         return photo
@@ -946,16 +1521,30 @@ class AgriLensApp:
 
         self.selected_plant = None
         self.last_probs = None
+        self.last_raw_out = None
         self.latency_ms = 0.0
 
         self.entered_password = ""
         self.camera = Camera(auto_detect=False)
+        self.camera.contrast = int(cfg.get("cam_contrast", 100))
+        self.camera.brightness = int(cfg.get("cam_brightness", 0))
+        self.camera.saturation = int(cfg.get("cam_saturation", 100))
+        self.camera.sharpness = int(cfg.get("cam_sharpness", 100))
+        self.camera.wb_temp = int(cfg.get("cam_wb_temp", 0))
+        self.camera.zoom = int(cfg.get("cam_zoom", 100))
+        self.camera.flip_h = bool(cfg.get("cam_flip_h", False))
+        self.camera.flip_v = bool(cfg.get("cam_flip_v", False))
+        self.camera.auto_exp = bool(cfg.get("cam_auto_exp", True))
+        self.camera.auto_wb = bool(cfg.get("cam_auto_wb", True))
+
         self.classifier = None
-        self.plants = ["Apple", "Mango", "Pepper", "Potato"]
+        self.plants = ["Apple", "Mango", "Potato", "Tomato"]
         self.crops = []
         self.parsed = []
         self.sliders = {}
         self.slider_badges = {}
+        self.cam_sliders = {}
+        self.cam_slider_badges = {}
 
         self._setup_window()
         self._build_top_bar()
@@ -963,6 +1552,7 @@ class AgriLensApp:
         self._build_plant_picker()
         self._build_password_screen()
         self._build_admin_panel()
+        self._build_camera_panel()
 
         # Display immediate responsive startup status on canvas
         self.canvas.itemconfig(
@@ -972,30 +1562,73 @@ class AgriLensApp:
         self.banner.config(text="STARTING UP — PLEASE WAIT...", bg=GREY_BTN, fg=WHITE)
 
         self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.bind("<Escape>", lambda e: self.close())
-        self.root.bind("<space>", lambda e: self.handle_capture_or_retake())
+        self.root.bind("<Escape>", self._on_escape_key)
+        self.root.bind("<space>", self._on_space_key)
+        self.root.bind("<Key>", self._on_key_press)
 
         # Non-blocking async bootstrap: window paints immediately in <0.1s
         self.root.after(30, self._start_async_bootstrap)
 
-    def _setup_window(self):
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        is_pi = platform.system() == "Linux"
+    def _any_overlay_open(self):
+        for attr in ("picker", "pwd_screen", "admin", "cam_panel"):
+            w = getattr(self, attr, None)
+            if w is not None and w.winfo_ismapped():
+                return True
+        return False
 
-        if is_pi:
-            self.root.attributes("-fullscreen", True)
-            self.W, self.H = sw, sh
+    def _on_escape_key(self, event=None):
+        if self._any_overlay_open():
+            self.close_overlays()
         else:
-            self.W = min(1024, max(800, sw - 100))
-            self.H = min(600, max(480, sh - 100))
-            self.root.geometry(f"{self.W}x{self.H}+50+50")
-            self.root.resizable(False, False)
+            self.close()
 
-        self.S = min(self.W / 1024, self.H / 600)
-        self.TOP_H = self.px(54)
-        self.root.title("AGRILENS - AI Plant Health Kiosk")
+    def _on_space_key(self, event=None):
+        if not self._any_overlay_open():
+            self.handle_capture_or_retake()
+
+    def _on_key_press(self, event=None):
+        if hasattr(self, "pwd_screen") and self.pwd_screen.winfo_ismapped() and event is not None:
+            ks = getattr(event, "keysym", "")
+            ch = getattr(event, "char", "")
+            if ks == "BackSpace":
+                self._pwd_backspace()
+            elif ks in ("Return", "KP_Enter"):
+                self._pwd_submit()
+            elif ch and len(ch) == 1 and ch.isalnum():
+                self._pwd_key_press(ch.upper())
+
+    def _setup_window(self):
+        ensure_rpi_autostart()
+        # Lock Tkinter font DPI scaling to standard 96 DPI (1.3333) so small 7" physical
+        # screen dimensions in EDID never inflate font sizes on Raspberry Pi / Waveshare.
+        try:
+            self.root.tk.call("tk", "scaling", 96.0 / 72.0)
+        except Exception:
+            pass
+        self.root.title("")
         self.root.configure(bg=BG)
+        self.root.attributes("-fullscreen", True)
+        self.root.update_idletasks()
+        self.root.update()
+
+        sw = self.root.winfo_width()
+        sh = self.root.winfo_height()
+        if sw < 400 or sh < 300:
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+
+        # On Raspberry Pi + Waveshare 7" (1024x600 native, 1920x1080 max EDID),
+        # clamp to 1024x600 so early-boot 1920x1080 EDID never enlarges the UI.
+        if platform.system() == "Linux" and (sw > 1024 or sh > 600):
+            sw, sh = 1024, 600
+
+        self.W = sw if sw > 0 else 1024
+        self.H = sh if sh > 0 else 600
+        self.root.geometry(f"{self.W}x{self.H}+0+0")
+        self.root.after(100, lambda: self.root.attributes("-fullscreen", True))
+
+        self.S = min(self.W / 1060, self.H / 600)
+        self.TOP_H = self.px(50)
 
     def px(self, val):
         return max(1, round(val * self.S))
@@ -1084,9 +1717,9 @@ class AgriLensApp:
         # Header Title
         title_box = tk.Frame(top, bg=PANEL)
         title_box.pack(side="left", padx=px(10), fill="y")
-        lbl_brand = tk.Label(title_box, text=f"AGRILENS v{APP_VERSION}", font=self.f(15, True), fg=WHITE, bg=PANEL, cursor="hand2")
+        lbl_brand = tk.Label(title_box, text="AGRILENS", font=self.f(15, True), fg=WHITE, bg=PANEL, cursor="hand2")
         lbl_brand.pack(anchor="w")
-        ToolTip(lbl_brand, "AGRILENS Edge Vision Kiosk", f"Version: v{APP_VERSION}\nBuild: {BUILD_TIMESTAMP}\nModel: MobileNetV4 ONNX (17 Classes)", font_family=FONT)
+        ToolTip(lbl_brand, "AGRILENS Edge Vision Kiosk", f"Version: v{APP_VERSION}\nBuild: {BUILD_TIMESTAMP}\nModel: MobileNetV4 ONNX (24 Classes)", font_family=FONT)
         tk.Label(title_box, text="AI Agricultural Health Diagnostics", font=self.f(8, True), fg=GREEN_ACCENT, bg=PANEL).pack(anchor="w")
 
         # Far Right: Official Gundecha Education Academy Logo
@@ -1105,65 +1738,25 @@ class AgriLensApp:
         pad = px(8)
         body_h = self.H - self.TOP_H
 
-        body = tk.Frame(self.root, bg=BG)
+        body = tk.Frame(self.root, bg=BG, width=self.W, height=body_h)
         body.pack(side="top", fill="both", expand=True)
+        body.pack_propagate(False)
 
-        # LEFT SIDE - Camera Feed + Quality AI Bar + Action Buttons
-        left = tk.Frame(body, bg=BG, width=self.W // 2, height=body_h)
-        left.pack(side="left")
+        left_w = int(self.W * 0.47)
+        right_w = self.W - left_w
+
+        # LEFT SIDE - Camera Feed (Large Top) + Quality AI Bar (Above Buttons) + Action Buttons (Anchored Bottom)
+        left = tk.Frame(body, bg=BG, width=left_w, height=body_h)
+        left.pack(side="left", fill="y")
         left.pack_propagate(False)
 
-        btn_area_h = px(68)
-        self.CAM_W = self.W // 2 - 2 * pad - 4
-        self.CAM_H = body_h - btn_area_h - 2 * pad - px(34)
-
-        self.cam_border = tk.Frame(left, bg=CARD, padx=2, pady=2)
-        self.cam_border.pack(side="top", pady=(pad, px(4)))
-
-        # Clean Camera Canvas with subtle targeting frame
-        self.canvas = tk.Canvas(self.cam_border, width=self.CAM_W, height=self.CAM_H,
-                                bg="#000000", highlightthickness=0)
-        self.canvas.pack()
-        self.canvas.bind("<Button-1>", lambda e: self.handle_capture_or_retake())
-
-        cw, ch = self.CAM_W, self.CAM_H
-        self.img_item = self.canvas.create_image(cw // 2, ch // 2, anchor="center")
-
-        # Leaf Alignment Targeting Box
-        side = int(min(cw, ch) * 0.82)
-        x0, y0 = (cw - side) // 2, (ch - side) // 2
-        self.guide = self.canvas.create_rectangle(
-            x0, y0, x0 + side, y0 + side,
-            outline=GREEN_ACCENT, width=px(2), dash=(8, 5)
-        )
-
-        # Live webcam indicator overlay
-        self.live_badge = self.canvas.create_text(
-            px(58), px(16), fill=GREEN_ACCENT, font=self.f(9, True),
-            text="LIVE WEBCAM"
-        )
-
-        self.msg_txt = self.canvas.create_text(
-            cw // 2, ch // 2, fill=MUTED, font=self.f(13),
-            justify="center", text="Connecting to webcam..."
-        )
-
-        # IMAGE QUALITY AI STATUS BAR (Directly below canvas)
-        quality_frame = tk.Frame(left, bg=PANEL, padx=px(8), pady=px(3))
-        quality_frame.pack(side="top", fill="x", padx=pad + 2, pady=(0, px(6)))
-
-        self.quality_lbl = tk.Label(
-            quality_frame, text="Leaf Quality AI: Align leaf inside box",
-            font=self.f(9, True), fg=MUTED, bg=PANEL, anchor="center"
-        )
-        self.quality_lbl.pack(fill="x")
-
-        # SEPARATE ACTION BUTTONS BAR (Side-by-Side: [CAPTURE LEAF] and [DIAGNOSE LEAF])
-        btn_box = tk.Frame(left, bg=BG)
-        btn_box.pack(side="top", fill="x", padx=pad + 2, pady=(0, pad))
-
+        self.CAM_W = left_w - 2 * pad - 4
         half_btn_w = self.CAM_W // 2 - px(6)
         btn_h = px(44)
+
+        # 1. BOTTOM: SEPARATE ACTION BUTTONS BAR ([CAPTURE LEAF] and [DIAGNOSE LEAF] at bottom of screen)
+        btn_box = tk.Frame(left, bg=BG)
+        btn_box.pack(side="bottom", fill="x", padx=pad + 2, pady=(0, pad))
 
         # Button 1: CAPTURE (swaps to RETAKE when frozen)
         self.capture_btn = self._button(
@@ -1177,42 +1770,87 @@ class AgriLensApp:
             btn_box, "DIAGNOSE LEAF", CARD, self.handle_diagnose,
             width=half_btn_w, height=btn_h, size=11, fg=WHITE, border=BORDER, radius=px(22), parent_bg=BG
         )
-        self.diagnose_btn.pack(side="left", padx=(px(4), 0))
+        self.diagnose_btn.pack(side="right", padx=(px(4), 0))
+
+        # 2. DIRECTLY ABOVE BUTTONS: IMAGE QUALITY AI STATUS BAR
+        quality_frame = tk.Frame(left, bg=PANEL, padx=px(6), pady=px(4))
+        quality_frame.pack(side="bottom", fill="x", padx=pad + 2, pady=(0, px(6)))
+
+        self.quality_lbl = tk.Label(
+            quality_frame, text="Leaf Quality AI: Align leaf inside box",
+            font=self.f(9, True), fg=MUTED, bg=PANEL, anchor="center",
+            wraplength=self.CAM_W - px(12)
+        )
+        self.quality_lbl.pack(fill="x")
+
+        # 3. LARGE CAMERA OUTPUT DISPLAY (Fills remaining upper space above quality text)
+        self.CAM_H = max(px(220), body_h - btn_h - px(52))
+
+        self.cam_border = tk.Frame(left, bg=CARD, padx=2, pady=2)
+        self.cam_border.pack(side="top", pady=(pad, px(4)), expand=True)
+
+        # Clean Camera Canvas with subtle targeting frame
+        self.canvas = tk.Canvas(self.cam_border, width=self.CAM_W, height=self.CAM_H,
+                                bg="#000000", highlightthickness=0)
+        self.canvas.pack()
+        self.canvas.bind("<Button-1>", lambda e: self.handle_capture_or_retake())
+
+        cw, ch = self.CAM_W, self.CAM_H
+        self.img_item = self.canvas.create_image(cw // 2, ch // 2, anchor="center")
+
+        # Leaf Alignment Targeting Box - Expanded to cover complete image area
+        margin = px(3)
+        self.guide = self.canvas.create_rectangle(
+            margin, margin, cw - margin, ch - margin,
+            outline=GREEN_ACCENT, width=px(2), dash=(8, 5)
+        )
+
+        # Live webcam indicator overlay
+        self.live_badge = self.canvas.create_text(
+            px(58), px(16), fill=GREEN_ACCENT, font=self.f(9, True),
+            text="LIVE WEBCAM"
+        )
+
+        self.msg_txt = self.canvas.create_text(
+            cw // 2, ch // 2, fill=MUTED, font=self.f(12),
+            justify="center", text="Connecting to webcam..."
+        )
 
         # RIGHT SIDE - Farmer Diagnosis & Recommendations
-        right = tk.Frame(body, bg=PANEL)
+        right = tk.Frame(body, bg=PANEL, width=right_w - pad, height=body_h - 2 * pad)
         right.pack(side="left", fill="both", expand=True, padx=(0, pad), pady=pad)
-        rp = px(14)
-        wrap = self.W - self.W // 2 - pad - 2 * rp - px(6)
+        right.pack_propagate(False)
+        rp = px(12)
+        wrap = right_w - pad - 2 * rp - px(8)
 
-        self.banner_frame = tk.Frame(right, bg=GREY_BTN, padx=px(8), pady=px(6))
+        self.banner_frame = tk.Frame(right, bg=GREY_BTN, padx=px(8), pady=px(5))
         self.banner_frame.pack(fill="x")
 
         self.banner = tk.Label(
-            self.banner_frame, text="READY — AIM LEAF AT CAMERA", font=self.f(15, True),
-            bg=GREY_BTN, fg=WHITE, pady=px(2)
+            self.banner_frame, text="READY — AIM LEAF AT CAMERA", font=self.f(13, True),
+            bg=GREY_BTN, fg=WHITE, pady=px(2), wraplength=wrap
         )
         self.banner.pack(fill="x")
 
         info = tk.Frame(right, bg=PANEL)
-        info.pack(fill="x", padx=rp, pady=(px(8), 0))
+        info.pack(fill="x", padx=rp, pady=(px(6), 0))
 
         self.plant_lbl = tk.Label(info, text="Mode: Auto-Detect (Beta Production)", font=self.f(10, True), fg=GREEN_ACCENT, bg=PANEL, anchor="w")
         self.plant_lbl.pack(fill="x")
 
         self.disease_lbl = tk.Label(
             info, text="Aim leaf inside box -> Tap CAPTURE -> Tap DIAGNOSE",
-            font=self.f(14, True), fg=WHITE, bg=PANEL, anchor="w",
+            font=self.f(13, True), fg=WHITE, bg=PANEL, anchor="w",
             justify="left", wraplength=wrap
         )
         self.disease_lbl.pack(fill="x")
 
         # Confidence Bar
-        self.BAR_W, self.BAR_H = wrap, px(20)
+        self.BAR_W, self.BAR_H = wrap, px(18)
         self.bar = tk.Canvas(info, width=self.BAR_W, height=self.BAR_H, bg=CARD, highlightthickness=0)
-        self.bar.pack(anchor="w", pady=(px(6), 0))
+        self.bar.pack(anchor="w", pady=(px(5), 0))
 
-        tk.Frame(right, bg=BORDER, height=max(1, px(1))).pack(fill="x", padx=rp, pady=(px(10), px(4)))
+        tk.Frame(right, bg=BORDER, height=max(1, px(1))).pack(fill="x", padx=rp, pady=(px(8), px(4)))
 
         tk.Label(
             right, text="RECOMMENDED FARMER ACTIONS", font=self.f(10, True),
@@ -1220,8 +1858,11 @@ class AgriLensApp:
         ).pack(fill="x", padx=rp, pady=(0, px(4)))
 
         # Bottom Hardware / Latency Strip
-        self.stats_lbl = tk.Label(right, text="", font=self.f(8), fg=MUTED, bg=PANEL, anchor="w")
-        self.stats_lbl.pack(side="bottom", fill="x", padx=rp, pady=(0, px(6)))
+        self.stats_lbl = tk.Label(
+            right, text=f"v{APP_VERSION}", font=self.f(8), fg=MUTED, bg=PANEL,
+            anchor="w", justify="left", wraplength=wrap
+        )
+        self.stats_lbl.pack(side="bottom", fill="x", padx=rp, pady=(0, px(4)))
 
         tk.Label(
             right, text=DISCLAIMER, font=self.f(8), fg=MUTED, bg=PANEL,
@@ -1253,14 +1894,14 @@ class AgriLensApp:
     def _build_plant_picker(self):
         px = self.px
         self.picker = tk.Frame(self.root, bg=BG)
-        tk.Label(self.picker, text="SELECT CROP TO DIAGNOSE", font=self.f(20, True), fg=WHITE, bg=BG).pack(pady=(px(20), px(4)))
+        tk.Label(self.picker, text="SELECT CROP TO DIAGNOSE", font=self.f(20, True), fg=WHITE, bg=BG).pack(pady=(px(24), px(4)))
         tk.Label(self.picker, text="Auto-detection mode automatically identifies all supported plant species",
                  font=self.f(10), fg=MUTED, bg=BG).pack()
 
         self.picker_grid = tk.Frame(self.picker, bg=BG)
         self.picker_grid.pack(expand=True)
 
-        self._button(self.picker, "REVERT TO SCANNER", GREY_BTN, self.close_overlays, width=px(200), height=px(42), radius=px(21), fg=WHITE, parent_bg=BG).pack(pady=(0, px(18)))
+        self._button(self.picker, "REVERT TO SCANNER", GREY_BTN, self.close_overlays, width=px(210), height=px(52), size=11, radius=px(16), fg=WHITE, parent_bg=BG).pack(pady=(0, px(22)))
 
     def _fill_plant_picker(self):
         for w in self.picker_grid.winfo_children():
@@ -1273,10 +1914,10 @@ class AgriLensApp:
             b = self._button(
                 self.picker_grid, text, color,
                 lambda v=value: self.select_plant(v),
-                width=self.px(220), height=self.px(44), size=11, fg=WHITE,
-                border=border, radius=self.px(22), parent_bg=BG
+                width=self.px(220), height=self.px(58), size=11, fg=WHITE,
+                border=border, radius=self.px(16), parent_bg=BG
             )
-            b.grid(row=i // cols, column=i % cols, padx=self.px(8), pady=self.px(8))
+            b.grid(row=i // cols, column=i % cols, padx=self.px(10), pady=self.px(10))
 
     def open_plant_picker(self):
         self._fill_plant_picker()
@@ -1291,7 +1932,7 @@ class AgriLensApp:
             self.plant_btn.config(text=f"CROP: {plant.upper()}")
 
         if self.paused and self.last_probs:
-            self._render_diagnosis(self.last_probs)
+            self._render_diagnosis(self.last_probs, self.last_raw_out)
         elif not self.paused:
             self._reset_panel()
         self.close_overlays()
@@ -1305,26 +1946,30 @@ class AgriLensApp:
         head.pack(side="top", fill="x")
         head.pack_propagate(False)
 
-        tk.Label(head, text="ADMIN SECURITY LOCK", font=self.f(17, True), fg=WHITE, bg=PANEL).pack(side="left", padx=px(16))
-        self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=px(88), height=px(38), size=10, fg=WHITE, parent_bg=PANEL).pack(side="right", padx=px(8), pady=px(7))
+        tk.Label(head, text="ADMIN SECURITY LOCK", font=self.f(16, True), fg=WHITE, bg=PANEL).pack(side="left", padx=px(16))
+        self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=px(96), height=px(38), size=10, radius=px(10), fg=WHITE, parent_bg=PANEL).pack(side="right", padx=px(10), pady=px(6))
 
-        disp_box = tk.Frame(self.pwd_screen, bg=BG)
-        disp_box.pack(pady=(px(12), px(6)))
+        # Centered container so the keyboard & display box have clean, un-stretched proportions
+        center_wrap = tk.Frame(self.pwd_screen, bg=BG)
+        center_wrap.pack(expand=True)
+
+        disp_box = tk.Frame(center_wrap, bg=PANEL, padx=px(18), pady=px(10), highlightbackground=BORDER, highlightthickness=1)
+        disp_box.pack(pady=(px(6), px(12)))
 
         self.pwd_display_lbl = tk.Label(
-            disp_box, text="", font=(FONT, max(14, round(20 * self.S)), "bold"),
-            fg=WHITE, bg=CARD, width=16, height=1, relief="solid", bd=1
+            disp_box, text="", font=(FONT, max(16, round(22 * self.S)), "bold"),
+            fg=WHITE, bg=CARD, width=14, pady=px(6), relief="flat", bd=0
         )
-        self.pwd_display_lbl.pack(pady=(0, px(4)))
+        self.pwd_display_lbl.pack(pady=(0, px(6)))
 
         self.pwd_status_lbl = tk.Label(
-            disp_box, text="ENTER SYSTEM PASSWORD", font=self.f(10, True), fg=MUTED, bg=BG
+            disp_box, text="ENTER SYSTEM PASSWORD", font=self.f(10, True), fg=MUTED, bg=PANEL
         )
         self.pwd_status_lbl.pack()
 
-        # Touch Keyboard with Rounded Buttons
-        kb_frame = tk.Frame(self.pwd_screen, bg=BG)
-        kb_frame.pack(expand=True, pady=(0, px(10)))
+        # Large Square-Proportioned Touch Keyboard (Un-stretched, Easy Finger Tap)
+        kb_frame = tk.Frame(center_wrap, bg=BG)
+        kb_frame.pack(pady=(0, px(6)))
 
         rows = [
             ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
@@ -1333,31 +1978,35 @@ class AgriLensApp:
             ["ENTER"]
         ]
 
+        key_w = px(72)
+        key_h = px(66)
+        action_w = px(108)
+
         for row in rows:
             r_frame = tk.Frame(kb_frame, bg=BG)
-            r_frame.pack(pady=px(3))
+            r_frame.pack(pady=px(5))
             for key in row:
                 if key == "ENTER":
                     btn = self._button(
-                        r_frame, "ENTER", GREEN_PRIMARY, self._pwd_submit,
-                        width=px(240), height=px(44), size=12, fg=WHITE, radius=px(12), parent_bg=BG
+                        r_frame, "✓  ENTER PASSWORD", GREEN_PRIMARY, self._pwd_submit,
+                        width=px(240), height=px(62), size=14, fg=WHITE, radius=px(16), parent_bg=BG
                     )
                 elif key == "CLEAR":
                     btn = self._button(
                         r_frame, "CLEAR", RED_ALERT, self._pwd_clear,
-                        width=px(92), height=px(42), size=10, fg=WHITE, radius=px(10), parent_bg=BG
+                        width=action_w, height=key_h, size=12, fg=WHITE, radius=px(14), parent_bg=BG
                     )
                 elif key == "BACKSPACE":
                     btn = self._button(
-                        r_frame, "BACKSPACE", GREY_BTN, self._pwd_backspace,
-                        width=px(92), height=px(42), size=10, fg=WHITE, radius=px(10), parent_bg=BG
+                        r_frame, "⌫ BACK", GREY_BTN, self._pwd_backspace,
+                        width=action_w, height=key_h, size=12, fg=WHITE, radius=px(14), parent_bg=BG
                     )
                 else:
                     btn = self._button(
                         r_frame, key, CARD, lambda k=key: self._pwd_key_press(k),
-                        width=px(44), height=px(42), size=12, fg=WHITE, radius=px(10), border=BORDER, parent_bg=BG
+                        width=key_w, height=key_h, size=16, fg=WHITE, radius=px(14), border=BORDER, parent_bg=BG
                     )
-                btn.pack(side="left", padx=px(3))
+                btn.pack(side="left", padx=px(4))
 
     def open_password_screen(self):
         self.entered_password = ""
@@ -1400,20 +2049,56 @@ class AgriLensApp:
         head.pack(side="top", fill="x")
         head.pack_propagate(False)
 
-        tk.Label(head, text="ADMIN CONSOLE & AI PARAMETERS", font=self.f(17, True), fg=WHITE, bg=PANEL).pack(side="left", padx=px(16))
-        self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=px(88), height=px(38), size=10, fg=WHITE, parent_bg=PANEL).pack(side="right", padx=px(8), pady=px(7))
+        tk.Label(head, text="ADMIN CONSOLE & AI PARAMETERS", font=self.f(16, True), fg=WHITE, bg=PANEL).pack(side="left", padx=px(16))
+        self._button(head, "REVERT", GREY_BTN, self.close_overlays, width=px(96), height=px(38), size=10, radius=px(10), fg=WHITE, parent_bg=PANEL).pack(side="right", padx=px(10), pady=px(6))
 
-        # Split screen container
-        body = tk.Frame(self.admin, bg=BG)
-        body.pack(side="top", fill="both", expand=True, padx=px(12), pady=px(10))
+        # Balanced Split Screen Container (53% Left / 47% Right so neither side looks stretched)
+        pad_x = px(14)
+        pad_y = px(12)
+        body_w = self.W - 2 * pad_x
+        body_h = self.H - self.TOP_H - 2 * pad_y
 
-        # LEFT CARD: AI Diagnostic Sliders & Guidelines (60% width)
-        card_ai = tk.Frame(body, bg=PANEL, padx=px(14), pady=px(10))
-        card_ai.pack(side="left", fill="both", expand=True, padx=(0, px(8)))
+        body = tk.Frame(self.admin, bg=BG, width=body_w, height=body_h)
+        body.pack(side="top", fill="both", expand=True, padx=pad_x, pady=pad_y)
+        body.pack_propagate(False)
+
+        left_w = int(body_w * 0.53)
+        right_w = body_w - left_w - px(12)
+
+        # LEFT CARD: AI Diagnostic Sliders & Guidelines (Proportional 53% width)
+        card_ai = tk.Frame(body, bg=PANEL, padx=px(16), pady=px(12), width=left_w, height=body_h)
+        card_ai.pack(side="left", fill="y", expand=False)
+        card_ai.pack_propagate(False)
 
         tk.Label(card_ai, text="AI DIAGNOSTIC PARAMETERS", font=self.f(12, True), fg=GREEN_ACCENT, bg=PANEL, anchor="w").pack(fill="x")
-        tk.Label(card_ai, text="Fine-tune confidence, out-of-scope gating & focus thresholds", font=self.f(8), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(6)))
-        tk.Frame(card_ai, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(8)))
+        tk.Label(card_ai, text="Fine-tune confidence, out-of-scope gating & focus thresholds", font=self.f(9), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(6)))
+        tk.Frame(card_ai, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(10)))
+
+        # Bottom Guide Card & Reset Button anchored neatly at bottom of card_ai
+        self.guide_card = tk.Frame(card_ai, bg=CARD, padx=px(10), pady=px(8), height=px(86), highlightbackground=BORDER, highlightthickness=1)
+        self.guide_card.pack(side="bottom", fill="x", pady=(px(6), 0))
+        self.guide_card.pack_propagate(False)
+
+        self.guide_title_lbl = tk.Label(
+            self.guide_card, text="ⓘ  PARAMETER GUIDE",
+            font=self.f(9, True), fg=GREEN_ACCENT, bg=CARD, anchor="w"
+        )
+        self.guide_title_lbl.pack(fill="x")
+
+        self.guide_desc_lbl = tk.Label(
+            self.guide_card,
+            text="Hover or tap any ⓘ icon to view the meaning and impact of each setting.",
+            font=self.f(8), fg=MUTED, bg=CARD, justify="left", anchor="w",
+            wraplength=left_w - px(56)
+        )
+        self.guide_desc_lbl.pack(fill="x", pady=(px(3), 0))
+
+        btn_row = tk.Frame(card_ai, bg=PANEL)
+        btn_row.pack(side="bottom", fill="x", pady=(px(4), px(4)))
+        self._button(
+            btn_row, "↺ RESET DEFAULTS", CARD, self._reset_slider_defaults,
+            width=px(176), height=px(42), size=10, radius=px(12), fg=GREEN_ACCENT, border=BORDER, parent_bg=PANEL
+        ).pack(side="left")
 
         self.sliders = {}
         self.slider_badges = {}
@@ -1444,13 +2129,13 @@ class AgriLensApp:
             {
                 "key": "ood_logit",
                 "name": "Neural Logit Energy Gate",
-                "min": 20, "max": 65, "step": 1,
+                "min": 10, "max": 65, "step": 1,
                 "get_initial": lambda: int(round(self.ood_logit * 10)),
                 "format": lambda v: f"{float(v) / 10.0:.2f}",
                 "to_param": lambda v: round(float(v) / 10.0, 2),
                 "attr": "ood_logit",
                 "info_title": "Neural Logit Energy Gate",
-                "info_text": "Raw unnormalized neural activation filter. Real leaves from trained species generate strong logit spikes (>4.2). Uncataloged leaves (e.g. money plants) produce low logits and are safely rejected."
+                "info_text": "Raw unnormalized neural activation filter. Real leaves from trained species generate strong logit spikes (>2.4). Uncataloged leaves (e.g. money plants) produce low logits and are safely rejected."
             },
             {
                 "key": "sharpness_min",
@@ -1467,23 +2152,23 @@ class AgriLensApp:
 
         for spec in slider_specs:
             row = tk.Frame(card_ai, bg=PANEL)
-            row.pack(fill="x", pady=(0, px(4)))
+            row.pack(fill="x", padx=px(4), pady=(0, px(8)))
 
             hdr = tk.Frame(row, bg=PANEL)
-            hdr.pack(fill="x", pady=(0, px(1)))
+            hdr.pack(fill="x", pady=(0, px(2)))
 
-            tk.Label(hdr, text=spec["name"], font=self.f(9, True), fg=WHITE, bg=PANEL).pack(side="left")
+            tk.Label(hdr, text=spec["name"], font=self.f(10, True), fg=WHITE, bg=PANEL).pack(side="left")
 
             i_btn = tk.Label(
                 hdr, text=" ⓘ ", font=self.f(9, True),
-                fg=GREEN_ACCENT, bg=CARD, cursor="hand2", padx=px(2), pady=0
+                fg=GREEN_ACCENT, bg=CARD, cursor="hand2", padx=px(3), pady=0
             )
             i_btn.pack(side="left", padx=px(6))
 
             init_val = spec["get_initial"]()
             val_lbl = tk.Label(
-                hdr, text=spec["format"](init_val), font=self.f(9, True),
-                fg=GREEN_ACCENT, bg=CARD, padx=px(6), pady=px(1)
+                hdr, text=spec["format"](init_val), font=self.f(10, True),
+                fg=GREEN_ACCENT, bg=CARD, padx=px(8), pady=px(2)
             )
             val_lbl.pack(side="right")
             self.slider_badges[spec["key"]] = (val_lbl, spec["format"])
@@ -1504,6 +2189,8 @@ class AgriLensApp:
                 resolution=spec["step"],
                 orient="horizontal",
                 showvalue=False,
+                width=px(18),
+                sliderlength=px(34),
                 bg=PANEL,
                 troughcolor=BG,
                 activebackground=GREEN_ACCENT,
@@ -1512,92 +2199,464 @@ class AgriLensApp:
                 cursor="hand2"
             )
             slider.set(init_val)
-            slider.config(
-                command=lambda val, s=spec: self._on_slider_change(s, val)
-            )
             slider.pack(fill="x")
             self.sliders[spec["key"]] = (slider, spec)
 
-        # Reset button row
-        btn_row = tk.Frame(card_ai, bg=PANEL)
-        btn_row.pack(fill="x", pady=(px(4), px(4)))
-        self._button(
-            btn_row, "↺ RESET DEFAULTS", CARD, self._reset_slider_defaults,
-            width=px(160), height=px(36), size=9, fg=GREEN_ACCENT, border=BORDER, parent_bg=PANEL
-        ).pack(side="left")
+        # Flush pending initial slider set() events before attaching command callbacks
+        self.root.update_idletasks()
+        for key, (slider, spec) in self.sliders.items():
+            slider.config(command=lambda val, s=spec: self._on_slider_change(s, val))
 
-        # Interactive Explanation / Guide Card
-        self.guide_card = tk.Frame(card_ai, bg=CARD, padx=px(8), pady=px(6), highlightbackground=BORDER, highlightthickness=1)
-        self.guide_card.pack(fill="both", expand=True, pady=(px(2), 0))
-
-        self.guide_title_lbl = tk.Label(
-            self.guide_card, text="ⓘ  PARAMETER GUIDE",
-            font=self.f(9, True), fg=GREEN_ACCENT, bg=CARD, anchor="w"
-        )
-        self.guide_title_lbl.pack(fill="x")
-
-        self.guide_desc_lbl = tk.Label(
-            self.guide_card,
-            text="Hover or tap any ⓘ icon to view the meaning and impact of each setting.",
-            font=self.f(8), fg=MUTED, bg=CARD, justify="left", anchor="w",
-            wraplength=self.px(420)
-        )
-        self.guide_desc_lbl.pack(fill="x", pady=(px(2), 0))
-
-        # RIGHT CARD: Hardware & System (40% width)
-        card_sys = tk.Frame(body, bg=PANEL, padx=px(14), pady=px(10), width=self.px(320))
-        card_sys.pack(side="right", fill="both", expand=False)
+        # RIGHT CARD: Hardware & System (Balanced 47% width)
+        card_sys = tk.Frame(body, bg=PANEL, padx=px(18), pady=px(12), width=right_w, height=body_h)
+        card_sys.pack(side="right", fill="y", expand=False)
         card_sys.pack_propagate(False)
 
         tk.Label(card_sys, text="HARDWARE & SYSTEM", font=self.f(12, True), fg=WHITE, bg=PANEL, anchor="w").pack(fill="x")
-        tk.Label(card_sys, text="Peripherals & application runtime", font=self.f(8), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(6)))
-        tk.Frame(card_sys, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(10)))
+        tk.Label(card_sys, text="Peripherals & application runtime", font=self.f(9), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(6)))
+        tk.Frame(card_sys, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(12)))
+
+        # Bottom-anchored CLOSE APPLICATION section so card_sys distributes cleanly
+        exit_box = tk.Frame(card_sys, bg=PANEL)
+        exit_box.pack(side="bottom", fill="x", pady=(px(4), px(4)))
+
+        tk.Frame(exit_box, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(12)))
+
+        self.exit_btn = self._button(
+            exit_box, "✕ CLOSE APPLICATION", RED_ALERT, self.close,
+            width=px(220), height=px(52), size=11, radius=px(14), fg=WHITE, parent_bg=PANEL
+        )
+        self.exit_btn.pack(pady=(0, px(6)))
+
+        tk.Label(
+            exit_box, text="Safely exit the kiosk and return to desktop",
+            font=self.f(9), fg=MUTED, bg=PANEL
+        ).pack()
+
+        # Upper/Middle sections: Camera Status + Detect Webcam + GitHub Repo
+        cam_box = tk.Frame(card_sys, bg=CARD, padx=px(12), pady=px(10), highlightbackground=BORDER, highlightthickness=1)
+        cam_box.pack(fill="x", pady=(0, px(12)))
 
         self.webcam_status_lbl = tk.Label(
-            card_sys, text="Checking camera...", font=self.f(10, True), fg=MUTED, bg=PANEL, justify="center", wraplength=px(280)
+            cam_box, text="Checking camera...", font=self.f(10, True), fg=MUTED, bg=CARD, justify="center", wraplength=right_w - px(64)
         )
         self.webcam_status_lbl.pack(pady=(0, px(8)))
 
-        # DETECT WEBCAM BUTTON
         self.detect_btn = self._button(
-            card_sys, "🔍 DETECT WEBCAM", GREEN_PRIMARY, self._trigger_detect_webcam,
-            width=px(240), height=px(42), size=11, fg=WHITE, parent_bg=PANEL
+            cam_box, "🔍 DETECT WEBCAM", GREEN_PRIMARY, self._trigger_detect_webcam,
+            width=px(220), height=px(50), size=11, radius=px(14), fg=WHITE, parent_bg=CARD
         )
-        self.detect_btn.pack(pady=(0, px(4)))
+        self.detect_btn.pack(pady=(0, px(6)))
 
         self.detect_msg_lbl = tk.Label(
-            card_sys, text="Click to scan and connect USB webcam", font=self.f(8), fg=MUTED, bg=PANEL, justify="center", wraplength=px(280)
+            cam_box, text="Click to scan and connect USB webcam", font=self.f(8), fg=MUTED, bg=CARD, justify="center", wraplength=right_w - px(64)
         )
-        self.detect_msg_lbl.pack(pady=(0, px(10)))
+        self.detect_msg_lbl.pack()
 
-        # SEPARATOR
-        tk.Frame(card_sys, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(10)))
+        # CAMERA CONTROL PANEL TAB BUTTON (Replaced GitHub Repo button)
+        cam_tab_box = tk.Frame(card_sys, bg=PANEL)
+        cam_tab_box.pack(fill="x", pady=(px(4), 0))
 
-        # GITHUB REPOSITORY LINK
-        self.gh_btn = self._button(
-            card_sys, "🌐 OPEN GITHUB REPO", CARD, lambda: webbrowser.open("https://github.com/shreyuPRO/AGRILENS"),
-            width=px(240), height=px(38), size=10, fg=WHITE, border=BORDER, parent_bg=PANEL
+        self.cam_ctrl_btn = self._button(
+            cam_tab_box, "📷 CAMERA CONTROL PANEL", CARD, self.open_camera_panel,
+            width=px(240), height=px(52), size=10, radius=px(14), fg=GREEN_ACCENT, border=GREEN_ACCENT, parent_bg=PANEL
         )
-        self.gh_btn.pack(pady=(0, px(4)))
+        self.cam_ctrl_btn.pack(pady=(0, px(6)))
         tk.Label(
-            card_sys, text=f"shreyuPRO/AGRILENS (v{APP_VERSION})\nBuild: {BUILD_TIMESTAMP}",
+            cam_tab_box, text=f"Camera Tuning & Focus Calibration\nAGRILENS v{APP_VERSION}",
             font=self.f(8), fg=MUTED, bg=PANEL, justify="center"
-        ).pack(pady=(0, px(10)))
+        ).pack()
 
-        # SEPARATOR
-        tk.Frame(card_sys, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(10)))
+    # ---- 5B. Camera Control Panel Tab ----
+    def _build_camera_panel(self):
+        px = self.px
+        self.cam_panel = tk.Frame(self.root, bg=BG)
 
-        # CLOSE APPLICATION BUTTON
-        self.exit_btn = self._button(
-            card_sys, "✕ CLOSE APPLICATION", RED_ALERT, self.close,
-            width=px(240), height=px(44), size=11, fg=WHITE, parent_bg=PANEL
-        )
-        self.exit_btn.pack(pady=(0, px(4)))
+        head = tk.Frame(self.cam_panel, bg=PANEL, height=self.TOP_H)
+        head.pack(side="top", fill="x")
+        head.pack_propagate(False)
 
         tk.Label(
-            card_sys, text="Safely exit the kiosk and return to desktop",
-            font=self.f(8), fg=MUTED, bg=PANEL
-        ).pack()
+            head, text="CAMERA CONTROL PANEL",
+            font=self.f(15, True), fg=WHITE, bg=PANEL
+        ).pack(side="left", padx=px(16))
+
+        self._button(
+            head, "REVERT", GREY_BTN, self.close_overlays,
+            width=px(96), height=px(38), size=10, radius=px(10), fg=WHITE, parent_bg=PANEL
+        ).pack(side="right", padx=(px(4), px(10)), pady=px(6))
+
+        self._button(
+            head, "← ADMIN PANEL", CARD, self._back_to_admin_from_camera,
+            width=px(136), height=px(38), size=10, radius=px(10), fg=GREEN_ACCENT, border=BORDER, parent_bg=PANEL
+        ).pack(side="right", padx=px(4), pady=px(6))
+
+        pad_x = px(14)
+        pad_y = px(10)
+        body_w = self.W - 2 * pad_x
+        body_h = self.H - self.TOP_H - 2 * pad_y
+
+        body = tk.Frame(self.cam_panel, bg=BG, width=body_w, height=body_h)
+        body.pack(side="top", fill="both", expand=True, padx=pad_x, pady=pad_y)
+        body.pack_propagate(False)
+
+        left_w = int(body_w * 0.47)
+        right_w = body_w - left_w - px(12)
+
+        # LEFT CARD: Live Preview + Focus Calibration Meter + Orientation Toggles
+        card_prev = tk.Frame(body, bg=PANEL, padx=px(14), pady=px(10), width=left_w, height=body_h)
+        card_prev.pack(side="left", fill="y", expand=False)
+        card_prev.pack_propagate(False)
+
+        tk.Label(card_prev, text="LIVE FEED & FOCUS HELPER", font=self.f(11, True), fg=GREEN_ACCENT, bg=PANEL, anchor="w").pack(fill="x")
+        tk.Label(card_prev, text="Adjust focus until the Focus Sharpness Bar peaks in green", font=self.f(8), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(6)))
+
+        # Bottom 2x2 Quick Action Toggle Grid
+        toggles_box = tk.Frame(card_prev, bg=PANEL)
+        toggles_box.pack(side="bottom", fill="x", pady=(px(4), 0))
+
+        half_tw = (left_w - px(38)) // 2
+        row_t1 = tk.Frame(toggles_box, bg=PANEL)
+        row_t1.pack(fill="x", pady=(0, px(6)))
+
+        self.peaking_btn = self._button(
+            row_t1, "PEAKING: OFF", CARD, self._toggle_focus_peaking,
+            width=half_tw, height=px(40), size=9, radius=px(12), fg=WHITE, border=BORDER, parent_bg=PANEL
+        )
+        self.peaking_btn.pack(side="left")
+
+        self.flip_h_btn = self._button(
+            row_t1, "MIRROR H: OFF", CARD, self._toggle_flip_h,
+            width=half_tw, height=px(40), size=9, radius=px(12), fg=WHITE, border=BORDER, parent_bg=PANEL
+        )
+        self.flip_h_btn.pack(side="right")
+
+        row_t2 = tk.Frame(toggles_box, bg=PANEL)
+        row_t2.pack(fill="x")
+
+        self.flip_v_btn = self._button(
+            row_t2, "FLIP 180°: OFF", CARD, self._toggle_flip_v,
+            width=half_tw, height=px(40), size=9, radius=px(12), fg=WHITE, border=BORDER, parent_bg=PANEL
+        )
+        self.flip_v_btn.pack(side="left")
+
+        self.reset_cam_btn = self._button(
+            row_t2, "↺ RESET CAMERA", CARD, self._reset_camera_defaults,
+            width=half_tw, height=px(40), size=9, radius=px(12), fg=GREEN_ACCENT, border=BORDER, parent_bg=PANEL
+        )
+        self.reset_cam_btn.pack(side="right")
+
+        # Manual Focus Sharpness Meter Bar (directly above toggles)
+        focus_box = tk.Frame(card_prev, bg=CARD, padx=px(8), pady=px(6), highlightbackground=BORDER, highlightthickness=1)
+        focus_box.pack(side="bottom", fill="x", pady=(px(4), px(6)))
+
+        self.focus_lbl = tk.Label(
+            focus_box, text="Focus Sharpness: --%",
+            font=self.f(9, True), fg=WHITE, bg=CARD, anchor="w"
+        )
+        self.focus_lbl.pack(fill="x", pady=(0, px(3)))
+
+        self.FOCUS_BAR_W = left_w - px(48)
+        self.FOCUS_BAR_H = px(14)
+        self.focus_bar = tk.Canvas(
+            focus_box, width=self.FOCUS_BAR_W, height=self.FOCUS_BAR_H,
+            bg=BG, highlightthickness=0
+        )
+        self.focus_bar.pack(anchor="w")
+
+        # Live Camera Preview Canvas (fills remaining upper space of card_prev)
+        self.CAM_CTRL_W = left_w - px(32)
+        self.CAM_CTRL_H = max(px(160), body_h - px(215))
+
+        prev_border = tk.Frame(card_prev, bg=CARD, padx=2, pady=2)
+        prev_border.pack(side="top", expand=True)
+
+        self.cam_ctrl_canvas = tk.Canvas(
+            prev_border, width=self.CAM_CTRL_W, height=self.CAM_CTRL_H,
+            bg="#000000", highlightthickness=0
+        )
+        self.cam_ctrl_canvas.pack()
+        self.cam_ctrl_img_item = self.cam_ctrl_canvas.create_image(
+            self.CAM_CTRL_W // 2, self.CAM_CTRL_H // 2, anchor="center"
+        )
+        self.cam_ctrl_msg = self.cam_ctrl_canvas.create_text(
+            self.CAM_CTRL_W // 2, self.CAM_CTRL_H // 2,
+            fill=MUTED, font=self.f(10), justify="center",
+            text="Live Camera Preview"
+        )
+
+        # RIGHT CARD: 6 Camera Sliders + Hardware Toggles
+        card_ctrl = tk.Frame(body, bg=PANEL, padx=px(16), pady=px(10), width=right_w, height=body_h)
+        card_ctrl.pack(side="right", fill="y", expand=False)
+        card_ctrl.pack_propagate(False)
+
+        tk.Label(card_ctrl, text="CAMERA & IMAGE CONTROLS", font=self.f(11, True), fg=GREEN_ACCENT, bg=PANEL, anchor="w").pack(fill="x")
+        tk.Label(card_ctrl, text="Real-time contrast, lighting, white balance & macro zoom", font=self.f(8), fg=MUTED, bg=PANEL, anchor="w").pack(fill="x", pady=(0, px(4)))
+        tk.Frame(card_ctrl, bg=BORDER, height=max(1, px(1))).pack(fill="x", pady=(0, px(6)))
+
+        # Bottom USB Hardware Mode Toggles (Auto-Exposure & Auto White Balance)
+        usb_hw_box = tk.Frame(card_ctrl, bg=PANEL)
+        usb_hw_box.pack(side="bottom", fill="x", pady=(px(4), 0))
+
+        half_uw = (right_w - px(42)) // 2
+        self.auto_exp_btn = self._button(
+            usb_hw_box, "USB AUTO-EXP: ON", GREEN_PRIMARY, self._toggle_auto_exp,
+            width=half_uw, height=px(40), size=9, radius=px(12), fg=WHITE, parent_bg=PANEL
+        )
+        self.auto_exp_btn.pack(side="left")
+
+        self.auto_wb_btn = self._button(
+            usb_hw_box, "USB AUTO-WB: ON", GREEN_PRIMARY, self._toggle_auto_wb,
+            width=half_uw, height=px(40), size=9, radius=px(12), fg=WHITE, parent_bg=PANEL
+        )
+        self.auto_wb_btn.pack(side="right")
+
+        self.cam_sliders = {}
+        self.cam_slider_badges = {}
+
+        cam_specs = [
+            {
+                "key": "cam_contrast",
+                "name": "Contrast Control",
+                "min": 50, "max": 200, "step": 2,
+                "get_initial": lambda: int(self.camera.contrast),
+                "format": lambda v: f"{int(v)}%",
+                "attr": "contrast",
+                "hw": False
+            },
+            {
+                "key": "cam_brightness",
+                "name": "Brightness Offset",
+                "min": -50, "max": 50, "step": 2,
+                "get_initial": lambda: int(self.camera.brightness),
+                "format": lambda v: f"{int(v):+d}%",
+                "attr": "brightness",
+                "hw": False
+            },
+            {
+                "key": "cam_saturation",
+                "name": "Color Saturation",
+                "min": 0, "max": 200, "step": 5,
+                "get_initial": lambda: int(self.camera.saturation),
+                "format": lambda v: f"{int(v)}%",
+                "attr": "saturation",
+                "hw": False
+            },
+            {
+                "key": "cam_sharpness",
+                "name": "Sharpness & Vein Crisping",
+                "min": 50, "max": 250, "step": 5,
+                "get_initial": lambda: int(self.camera.sharpness),
+                "format": lambda v: f"{int(v)}%",
+                "attr": "sharpness",
+                "hw": False
+            },
+            {
+                "key": "cam_wb_temp",
+                "name": "White Balance (Cool ↔ Warm)",
+                "min": -50, "max": 50, "step": 2,
+                "get_initial": lambda: int(self.camera.wb_temp),
+                "format": lambda v: "Neutral (0)" if int(v) == 0 else (f"Warm +{int(v)}" if int(v) > 0 else f"Cool {int(v)}"),
+                "attr": "wb_temp",
+                "hw": True
+            },
+            {
+                "key": "cam_zoom",
+                "name": "Macro Digital Zoom",
+                "min": 100, "max": 200, "step": 5,
+                "get_initial": lambda: int(self.camera.zoom),
+                "format": lambda v: f"{float(v) / 100.0:.2f}x",
+                "attr": "zoom",
+                "hw": False
+            },
+        ]
+
+        for spec in cam_specs:
+            row = tk.Frame(card_ctrl, bg=PANEL)
+            row.pack(fill="x", padx=px(2), pady=(0, px(4)))
+
+            hdr = tk.Frame(row, bg=PANEL)
+            hdr.pack(fill="x", pady=(0, px(1)))
+
+            tk.Label(hdr, text=spec["name"], font=self.f(9, True), fg=WHITE, bg=PANEL).pack(side="left")
+
+            init_val = spec["get_initial"]()
+            val_lbl = tk.Label(
+                hdr, text=spec["format"](init_val), font=self.f(9, True),
+                fg=GREEN_ACCENT, bg=CARD, padx=px(7), pady=px(1)
+            )
+            val_lbl.pack(side="right")
+            self.cam_slider_badges[spec["key"]] = (val_lbl, spec["format"])
+
+            slider = tk.Scale(
+                row,
+                from_=spec["min"],
+                to=spec["max"],
+                resolution=spec["step"],
+                orient="horizontal",
+                showvalue=False,
+                width=px(14),
+                sliderlength=px(30),
+                bg=PANEL,
+                troughcolor=BG,
+                activebackground=GREEN_ACCENT,
+                highlightthickness=0,
+                bd=0,
+                cursor="hand2"
+            )
+            slider.set(init_val)
+            slider.pack(fill="x")
+            self.cam_sliders[spec["key"]] = (slider, spec)
+
+        self.root.update_idletasks()
+        for key, (slider, spec) in self.cam_sliders.items():
+            slider.config(command=lambda val, s=spec: self._on_cam_slider_change(s, val))
+        self._refresh_cam_toggle_buttons()
+
+    def _on_cam_slider_change(self, spec, val):
+        v_int = int(round(float(val)))
+        if spec["key"] in self.cam_slider_badges:
+            lbl, fmt = self.cam_slider_badges[spec["key"]]
+            lbl.config(text=fmt(v_int))
+        setattr(self.camera, spec["attr"], v_int)
+        if spec.get("hw"):
+            self.camera.apply_hardware_controls()
+        self._save_current_settings()
+
+    def _refresh_cam_toggle_buttons(self):
+        if hasattr(self, "peaking_btn"):
+            on = self.camera.focus_peaking
+            self.peaking_btn.config(
+                text=f"PEAKING: {'ON' if on else 'OFF'}",
+                bg=GREEN_PRIMARY if on else CARD
+            )
+        if hasattr(self, "flip_h_btn"):
+            on = self.camera.flip_h
+            self.flip_h_btn.config(
+                text=f"MIRROR H: {'ON' if on else 'OFF'}",
+                bg=GREEN_PRIMARY if on else CARD
+            )
+        if hasattr(self, "flip_v_btn"):
+            on = self.camera.flip_v
+            self.flip_v_btn.config(
+                text=f"FLIP 180°: {'ON' if on else 'OFF'}",
+                bg=GREEN_PRIMARY if on else CARD
+            )
+        if hasattr(self, "auto_exp_btn"):
+            on = self.camera.auto_exp
+            self.auto_exp_btn.config(
+                text=f"USB AUTO-EXP: {'ON' if on else 'OFF'}",
+                bg=GREEN_PRIMARY if on else CARD
+            )
+        if hasattr(self, "auto_wb_btn"):
+            on = self.camera.auto_wb
+            self.auto_wb_btn.config(
+                text=f"USB AUTO-WB: {'ON' if on else 'OFF'}",
+                bg=GREEN_PRIMARY if on else CARD
+            )
+
+    def _toggle_focus_peaking(self):
+        self.camera.focus_peaking = not self.camera.focus_peaking
+        self._refresh_cam_toggle_buttons()
+
+    def _toggle_flip_h(self):
+        self.camera.flip_h = not self.camera.flip_h
+        self._refresh_cam_toggle_buttons()
+        self._save_current_settings()
+
+    def _toggle_flip_v(self):
+        self.camera.flip_v = not self.camera.flip_v
+        self._refresh_cam_toggle_buttons()
+        self._save_current_settings()
+
+    def _toggle_auto_exp(self):
+        self.camera.auto_exp = not self.camera.auto_exp
+        self.camera.apply_hardware_controls()
+        self._refresh_cam_toggle_buttons()
+        self._save_current_settings()
+
+    def _toggle_auto_wb(self):
+        self.camera.auto_wb = not self.camera.auto_wb
+        self.camera.apply_hardware_controls()
+        self._refresh_cam_toggle_buttons()
+        self._save_current_settings()
+
+    def _reset_camera_defaults(self):
+        self.camera.contrast = 100
+        self.camera.brightness = 0
+        self.camera.saturation = 100
+        self.camera.sharpness = 100
+        self.camera.wb_temp = 0
+        self.camera.zoom = 100
+        self.camera.flip_h = False
+        self.camera.flip_v = False
+        self.camera.auto_exp = True
+        self.camera.auto_wb = True
+        self.camera.focus_peaking = False
+        self.camera.apply_hardware_controls()
+        self._sync_cam_panel_widgets()
+        self._save_current_settings()
+
+    def _sync_cam_panel_widgets(self):
+        for key, (slider, spec) in getattr(self, "cam_sliders", {}).items():
+            init_val = spec["get_initial"]()
+            slider.config(command="")
+            slider.set(init_val)
+            if key in self.cam_slider_badges:
+                lbl, fmt = self.cam_slider_badges[key]
+                lbl.config(text=fmt(init_val))
+        self.root.update_idletasks()
+        for key, (slider, spec) in getattr(self, "cam_sliders", {}).items():
+            slider.config(command=lambda val, s=spec: self._on_cam_slider_change(s, val))
+        self._refresh_cam_toggle_buttons()
+
+    def open_camera_panel(self):
+        self._sync_cam_panel_widgets()
+        self.cam_panel.place(x=0, y=0, relwidth=1, relheight=1)
+        self.cam_panel.lift()
+
+    def _back_to_admin_from_camera(self):
+        self._sync_sliders_to_attributes()
+        self._save_current_settings()
+        self.cam_panel.place_forget()
+        self.open_admin_panel()
+
+    def _update_camera_panel_preview(self, frame):
+        if not hasattr(self, "cam_panel") or not self.cam_panel.winfo_ismapped():
+            return
+        if frame is None:
+            self.cam_ctrl_canvas.itemconfig(
+                self.cam_ctrl_msg,
+                text="No webcam connected.\nUse Admin -> DETECT WEBCAM."
+            )
+            return
+
+        # Update Focus Sharpness Meter
+        pct, raw_lap = self.camera.compute_focus_metric(frame)
+        if pct >= 68:
+            f_col = GREEN_ACCENT
+            f_tag = "PEAK FOCUS — LOCK RING"
+        elif pct >= 42:
+            f_col = AMBER_WARN
+            f_tag = "GOOD — FINE-TUNE RING"
+        else:
+            f_col = RED_ALERT
+            f_tag = "BLURRY — TWIST FOCUS RING"
+
+        self.focus_lbl.config(
+            text=f"Focus Sharpness: {pct}% ({f_tag})",
+            fg=f_col
+        )
+        self.focus_bar.delete("all")
+        fill_w = max(4, int(self.FOCUS_BAR_W * (pct / 100.0)))
+        self.focus_bar.create_rectangle(0, 0, fill_w, self.FOCUS_BAR_H, fill=f_col, width=0)
+
+        # Render live preview (with optional neon Focus Peaking overlay)
+        prev_img = self.camera.render_focus_peaking(frame) if self.camera.focus_peaking else frame
+        disp = ImageOps.fit(prev_img, (self.CAM_CTRL_W, self.CAM_CTRL_H), RESAMPLE)
+        self._cam_ctrl_photo = ImageTk.PhotoImage(disp)
+        self.cam_ctrl_canvas.itemconfig(self.cam_ctrl_img_item, image=self._cam_ctrl_photo)
+        self.cam_ctrl_canvas.itemconfig(self.cam_ctrl_msg, text="")
 
     def _update_inline_guide(self, title, desc):
         if hasattr(self, "guide_title_lbl") and hasattr(self, "guide_desc_lbl"):
@@ -1628,7 +2687,17 @@ class AgriLensApp:
             "confidence_threshold": round(self.threshold, 3),
             "ood_margin": round(self.ood_margin, 3),
             "ood_logit": round(self.ood_logit, 2),
-            "sharpness_min": round(self.sharpness_min, 1)
+            "sharpness_min": round(self.sharpness_min, 1),
+            "cam_contrast": int(self.camera.contrast),
+            "cam_brightness": int(self.camera.brightness),
+            "cam_saturation": int(self.camera.saturation),
+            "cam_sharpness": int(self.camera.sharpness),
+            "cam_wb_temp": int(self.camera.wb_temp),
+            "cam_zoom": int(self.camera.zoom),
+            "cam_flip_h": bool(self.camera.flip_h),
+            "cam_flip_v": bool(self.camera.flip_v),
+            "cam_auto_exp": bool(self.camera.auto_exp),
+            "cam_auto_wb": bool(self.camera.auto_wb),
         }
         save_kiosk_config(cfg)
 
@@ -1655,7 +2724,33 @@ class AgriLensApp:
             "All AI diagnostic and quality parameters have been restored to factory recommended calibration defaults."
         )
 
+    def _sync_sliders_to_attributes(self):
+        for key, (slider, spec) in getattr(self, "sliders", {}).items():
+            try:
+                val_float = float(slider.get())
+                param_val = spec["to_param"](val_float)
+                setattr(self, spec["attr"], param_val)
+            except Exception:
+                pass
+        for key, (slider, spec) in getattr(self, "cam_sliders", {}).items():
+            try:
+                v_int = int(round(float(slider.get())))
+                setattr(self.camera, spec["attr"], v_int)
+            except Exception:
+                pass
+
     def open_admin_panel(self):
+        for key, (slider, spec) in getattr(self, "sliders", {}).items():
+            init_val = spec["get_initial"]()
+            slider.config(command="")
+            slider.set(init_val)
+            if key in self.slider_badges:
+                lbl, fmt = self.slider_badges[key]
+                lbl.config(text=fmt(init_val))
+        self.root.update_idletasks()
+        for key, (slider, spec) in getattr(self, "sliders", {}).items():
+            slider.config(command=lambda val, s=spec: self._on_slider_change(s, val))
+
         is_conn = (self.camera and self.camera.kind != "none")
         cam_text = self.camera.kind if is_conn else "No Webcam Connected"
         color = GREEN_PRIMARY if is_conn else RED_ALERT
@@ -1705,9 +2800,17 @@ class AgriLensApp:
             self.detect_btn.config(state="normal", text="DETECT WEBCAM")
 
     def close_overlays(self):
+        was_admin = (hasattr(self, "admin") and self.admin.winfo_ismapped()) or (hasattr(self, "cam_panel") and self.cam_panel.winfo_ismapped())
+        if was_admin:
+            self._sync_sliders_to_attributes()
+            self._save_current_settings()
         self.picker.place_forget()
         self.pwd_screen.place_forget()
         self.admin.place_forget()
+        if hasattr(self, "cam_panel"):
+            self.cam_panel.place_forget()
+        if was_admin and self.paused and self.last_probs:
+            self._render_diagnosis(self.last_probs, self.last_raw_out)
 
     # ---- 6. Live Camera Loop & AI Pipeline (Non-Blocking Async Bootstrap) ----
     def _start_async_bootstrap(self):
@@ -1757,17 +2860,25 @@ class AgriLensApp:
     def _preview_loop(self):
         if not self.running:
             return
-        if not self.paused and self.camera and self.camera.kind != "none":
+        cam_panel_open = hasattr(self, "cam_panel") and self.cam_panel.winfo_ismapped()
+        if (not self.paused or cam_panel_open) and self.camera and self.camera.kind != "none":
             frame = self.camera.read()
             if frame is not None:
-                self.latest_frame = frame
-                self._show_image(frame)
+                if not self.paused:
+                    self.latest_frame = frame
+                    self._show_image(frame)
+                if cam_panel_open:
+                    self._update_camera_panel_preview(frame)
             elif self.camera.kind == "none":
                 self.canvas.itemconfig(
                     self.msg_txt,
                     text="Webcam disconnected.\nPlease check USB connection or click ADMIN."
                 )
+                if cam_panel_open:
+                    self._update_camera_panel_preview(None)
                 self._update_stats_bar()
+        elif cam_panel_open:
+            self._update_camera_panel_preview(None)
         self.root.after(int(1000 / PREVIEW_FPS), self._preview_loop)
 
     def _show_image(self, img):
@@ -1793,20 +2904,37 @@ class AgriLensApp:
 
     # ---- 7. SEPARATE ACTIONS: Capture, Retake, and Diagnose ----
     def handle_capture_or_retake(self):
-        """Toggles between CAPTURE (freeze image + assess quality) and RETAKE (restore live feed)."""
+        """Toggles between CAPTURE (detect leaf ROI or fallback to full image) and RETAKE."""
         if not self.paused:
             # 1. ACTION: CAPTURE
             if self.latest_frame is not None:
+                isolated_leaf, outline_ok, info = LeafOutlineSegmenter.extract_leaf(self.latest_frame)
+
                 self.paused = True
-                self.captured_frame = self.latest_frame
                 self.canvas.itemconfig(self.guide, state="hidden")
-                self.canvas.itemconfig(self.live_badge, text="CAPTURED LEAF", fill=AMBER_WARN)
 
-                # Run Leaf Image Quality AI
-                score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
-                self.quality_lbl.config(text=q_msg, fg=q_color)
+                if outline_ok and isolated_leaf is not None:
+                    self.captured_frame = isolated_leaf
+                    self._show_image(self.captured_frame)
+                    self.canvas.itemconfig(self.live_badge, text="LEAF ROI ISOLATED", fill=GREEN_ACCENT)
 
-                # Swap Capture button to RETAKE, and Diagnose button to DIAGNOSE NOW
+                    score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
+                    self.quality_lbl.config(text=f"Leaf ROI Isolated | {q_msg}", fg=q_color)
+                    self.banner_frame.config(bg=GREEN_PRIMARY)
+                    self.banner.config(text="LEAF OUTLINE ISOLATED — READY TO DIAGNOSE", bg=GREEN_PRIMARY, fg=WHITE)
+                    self.disease_lbl.config(text="Leaf region focused cleanly. Tap DIAGNOSE NOW.")
+                else:
+                    self.captured_frame = self.latest_frame
+                    self._show_image(self.captured_frame)
+                    self.canvas.itemconfig(self.live_badge, text="CAPTURED (FULL FRAME)", fill=AMBER_WARN)
+
+                    score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
+                    self.quality_lbl.config(text=f"Full Frame Image | {q_msg}", fg=q_color)
+                    self.banner_frame.config(bg=CARD)
+                    self.banner.config(text="IMAGE CAPTURED (FULL FRAME) — READY TO DIAGNOSE", bg=CARD, fg=WHITE)
+                    self.disease_lbl.config(text="Complete image captured. Tap DIAGNOSE NOW.")
+
+                # Always move ahead: swap Capture to RETAKE and Diagnose to DIAGNOSE NOW
                 self.capture_btn.config(text="RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
                 self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
             else:
@@ -1816,6 +2944,7 @@ class AgriLensApp:
             self.paused = False
             self.captured_frame = None
             self.last_probs = None
+            self.last_raw_out = None
             self.canvas.itemconfig(self.guide, state="normal")
             self.canvas.itemconfig(self.live_badge, text="LIVE WEBCAM", fill=GREEN_ACCENT)
 
@@ -1827,21 +2956,28 @@ class AgriLensApp:
 
     def handle_diagnose(self):
         """Runs 98.31% MobileNetV4 inference on the captured (or current) frame."""
-        target_img = self.captured_frame if self.captured_frame is not None else self.latest_frame
-
-        if target_img is None:
-            self.disease_lbl.config(text="No leaf image captured! Please tap CAPTURE first.")
-            return
-
-        if not self.paused:
-            # If user directly pressed DIAGNOSE while live, capture first
+        if self.captured_frame is None and self.latest_frame is not None:
+            # If user directly pressed DIAGNOSE while live, attempt outline capture or fallback
+            isolated_leaf, outline_ok, info = LeafOutlineSegmenter.extract_leaf(self.latest_frame)
             self.paused = True
-            self.captured_frame = target_img
+            if outline_ok and isolated_leaf is not None:
+                self.captured_frame = isolated_leaf
+                self.canvas.itemconfig(self.live_badge, text="LEAF ROI ISOLATED", fill=GREEN_ACCENT)
+            else:
+                self.captured_frame = self.latest_frame
+                self.canvas.itemconfig(self.live_badge, text="CAPTURED (FULL FRAME)", fill=AMBER_WARN)
+
+            self._show_image(self.captured_frame)
             self.canvas.itemconfig(self.guide, state="hidden")
-            self.canvas.itemconfig(self.live_badge, text="CAPTURED LEAF", fill=AMBER_WARN)
             score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
             self.quality_lbl.config(text=q_msg, fg=q_color)
             self.capture_btn.config(text="RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+            self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+
+        target_img = self.captured_frame if self.captured_frame is not None else self.latest_frame
+        if target_img is None:
+            self.disease_lbl.config(text="No leaf image captured! Please aim at leaf and tap CAPTURE.")
+            return
 
         if self.classifier:
             res = self.classifier.predict(target_img)
@@ -1851,6 +2987,7 @@ class AgriLensApp:
                 probs, ms = res
                 raw_out = None
             self.last_probs = probs
+            self.last_raw_out = raw_out
             self.latency_ms = ms
             self._render_diagnosis(probs, raw_out)
             self._update_stats_bar()
@@ -1868,37 +3005,48 @@ class AgriLensApp:
         raw_margin = raw_top1 - raw_top2
         max_logit = float(np.max(raw_out)) if raw_out is not None else 10.0
 
-        # Plant filtering
+        # Plant filtering when a target crop is explicitly selected
+        plant_tot = 1.0
         if self.selected_plant:
+            plant_keep = [self.crops[i] == self.selected_plant for i in range(n)]
+            plant_tot = sum(p for p, m in zip(raw_probs, plant_keep) if m)
             keep = [self.crops[i] == self.selected_plant or not self.crops[i] for i in range(n)]
             tot = sum(p for p, m in zip(adj, keep) if m)
             if tot > 0:
                 adj = [p / tot if m else 0.0 for p, m in zip(adj, keep)]
+
+        adj_sorted = sorted(adj, reverse=True)
+        active_margin = adj_sorted[0] - (adj_sorted[1] if len(adj_sorted) > 1 else 0.0)
 
         best = max(range(n), key=lambda i: adj[i])
         conf = adj[best]
         crop, cond, healthy = self.parsed[best]
 
         # 1. OUT-OF-DISTRIBUTION (OOD) / UNKNOWN PLANT DETECTION:
-        # Rejects random leaves outside the catalog or when Other_Plant_or_Background fires
+        # Rejects non-target flora / background when Other_Plant_or_Background wins,
+        # when raw neural logit energy is too weak, or when selected crop has negligible probability.
         is_negative_class = ("other" in cond.lower()) or ("background" in cond.lower())
         is_unknown_plant = (
-            is_negative_class or
-            (raw_top1 < self.threshold) or 
-            (raw_margin < self.ood_margin) or 
-            (max_logit < self.ood_logit)
+            is_negative_class
+            or (max_logit < self.ood_logit)
+            or (self.selected_plant is not None and plant_tot < 0.12)
         )
+
+        # 2. LOW CONFIDENCE / AMBIGUITY GATE:
+        # Triggers 'LOW CONFIDENCE — PLEASE RETAKE' when confidence is below threshold
+        # or top-1 vs top-2 margin is too narrow.
+        is_low_confidence = (conf < self.threshold) or (active_margin < self.ood_margin)
 
         if is_unknown_plant:
             status = "UNKNOWN PLANT / OUT OF SCOPE"
             color = AMBER_WARN
             plant_txt = "Plant: Unrecognized (Outside Catalog)"
-            disease_txt = "Specimen outside supported scope (Apple, Mango, Tomato)"
+            disease_txt = "Specimen outside supported scope (Apple, Mango, Potato, Tomato)"
             steps = OOD_STEPS
             num_color = AMBER_WARN
             btn_txt = "UNKNOWN LEAF"
             btn_color = AMBER_WARN
-        elif conf < self.threshold:
+        elif is_low_confidence:
             status = "LOW CONFIDENCE — PLEASE RETAKE"
             color = AMBER_WARN
             if self.selected_plant:
@@ -1970,10 +3118,15 @@ class AgriLensApp:
         lat = f"{self.latency_ms:.0f} ms" if self.latency_ms > 0 else "-- ms"
         cam = self.camera.kind if self.camera else "none"
         py_ver = f"Py {platform.python_version()}"
-        self.stats_lbl.config(text=f"AI: {mode_text} | Latency: {lat} | Camera: {cam} | {py_ver}")
+        self.stats_lbl.config(text=f"v{APP_VERSION} | AI: {mode_text} | Latency: {lat} | Camera: {cam} | {py_ver}")
 
     def close(self):
         self.running = False
+        try:
+            self._sync_sliders_to_attributes()
+            self._save_current_settings()
+        except Exception:
+            pass
         for job in self.root.tk.call("after", "info"):
             try:
                 self.root.after_cancel(job)
@@ -1987,40 +3140,9 @@ class AgriLensApp:
 
 
 # =============================================================================
-# 8. SINGLE INSTANCE GUARD & MAIN ENTRY POINT
+# 8. MAIN ENTRY POINT
 # =============================================================================
-SINGLE_INSTANCE_SOCKET = None
-
-def acquire_single_instance_lock(port=48195):
-    """Binds a local loopback port to prevent multiple conflicting instances from locking the camera."""
-    global SINGLE_INSTANCE_SOCKET
-    try:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
-        SINGLE_INSTANCE_SOCKET = s
-        return True
-    except Exception:
-        return False
-
-
 if __name__ == "__main__":
-    if not acquire_single_instance_lock():
-        root = tk.Tk()
-        root.withdraw()
-        try:
-            from tkinter import messagebox
-            messagebox.showwarning(
-                "AGRILENS Kiosk Already Running",
-                "An instance of AGRILENS is already running in the background.\n\n"
-                "Please check your taskbar or close the background instance before starting a new one."
-            )
-        except Exception:
-            pass
-        root.destroy()
-        sys.exit(0)
-
     root = tk.Tk()
     app = AgriLensApp(root)
     root.mainloop()

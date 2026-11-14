@@ -6,8 +6,11 @@ __pycache__/
 
 # Large Datasets & Archives (Excluded to respect GitHub 100MB file limit)
 *.zip
+*.tar
 *.tar.gz
 *.rar
+MobileV4/datasets/
+datasets/
 plant village data set old/
 PlantVillage/
 *.pdf
