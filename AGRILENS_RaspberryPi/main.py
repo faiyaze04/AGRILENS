@@ -24,6 +24,7 @@ import threading
 import time
 import webbrowser
 import tkinter as tk
+from tkinter import filedialog
 import tkinter.font as tkFont
 from collections import deque
 
@@ -180,6 +181,21 @@ def find_file(filename):
 
 MODEL_PATH = find_file("agrilens.onnx")
 LABELS_PATH = find_file("labels.txt")
+
+APP_BASE_DIR = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
+DIAGNOSIS_SAMPLES_DIR = os.path.join(APP_BASE_DIR, "diagnosis_samples")
+DIAGNOSIS_SPECIES_FOLDERS = ("Apple", "Mango", "Potato", "Tomato")
+
+
+def ensure_diagnosis_samples_dir():
+    """Ensures the fixed folder structure diagnosis_samples/{Apple,Mango,Potato,Tomato} exists."""
+    try:
+        os.makedirs(DIAGNOSIS_SAMPLES_DIR, exist_ok=True)
+        for sp in DIAGNOSIS_SPECIES_FOLDERS:
+            os.makedirs(os.path.join(DIAGNOSIS_SAMPLES_DIR, sp), exist_ok=True)
+    except Exception:
+        pass
+    return DIAGNOSIS_SAMPLES_DIR
 
 # Calibrated confidence & Out-Of-Distribution (OOD) rejection thresholds
 CONFIDENCE_THRESHOLD = 0.50  # Minimum positive identification threshold (50%)
@@ -1625,10 +1641,25 @@ class AgriLensApp:
         self.W = sw if sw > 0 else 1024
         self.H = sh if sh > 0 else 600
         self.root.geometry(f"{self.W}x{self.H}+0+0")
+        try:
+            self.root.deiconify()
+            self.root.lift()
+            self.root.attributes("-topmost", True)
+            self.root.focus_force()
+            if platform.system() == "Windows":
+                import ctypes
+                self.root.update_idletasks()
+                hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id()) or self.root.winfo_id()
+                ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+            self.root.after(400, lambda: self.root.attributes("-topmost", False))
+        except Exception:
+            pass
         self.root.after(100, lambda: self.root.attributes("-fullscreen", True))
 
-        self.S = min(self.W / 1060, self.H / 600)
-        self.TOP_H = self.px(50)
+        self.S = min(self.W / 1024, self.H / 600)
+        self.TOP_H = self.px(48)
 
     def px(self, val):
         return max(1, round(val * self.S))
@@ -1735,46 +1766,47 @@ class AgriLensApp:
     # ---- 2. Split Screen Body ----
     def _build_body(self):
         px = self.px
-        pad = px(8)
+        pad = px(6)
         body_h = self.H - self.TOP_H
 
         body = tk.Frame(self.root, bg=BG, width=self.W, height=body_h)
         body.pack(side="top", fill="both", expand=True)
         body.pack_propagate(False)
 
-        left_w = int(self.W * 0.47)
+        # Allocate 56.5% width to the Camera Panel so the full 4:3 (640x480) FoV displays large & uncropped on 1024x600
+        left_w = int(self.W * 0.565)
         right_w = self.W - left_w
 
-        # LEFT SIDE - Camera Feed (Large Top) + Quality AI Bar (Above Buttons) + Action Buttons (Anchored Bottom)
+        # LEFT SIDE - Full-FoV Camera Window + Quality AI Bar + Action Buttons
         left = tk.Frame(body, bg=BG, width=left_w, height=body_h)
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
 
         self.CAM_W = left_w - 2 * pad - 4
-        half_btn_w = self.CAM_W // 2 - px(6)
-        btn_h = px(44)
+        half_btn_w = self.CAM_W // 2 - px(5)
+        btn_h = px(42)
 
-        # 1. BOTTOM: SEPARATE ACTION BUTTONS BAR ([CAPTURE LEAF] and [DIAGNOSE LEAF] at bottom of screen)
+        # 1. BOTTOM: SEPARATE ACTION BUTTONS BAR ([CAPTURE LEAF / PICK FROM FILE] and [DIAGNOSE LEAF])
         btn_box = tk.Frame(left, bg=BG)
         btn_box.pack(side="bottom", fill="x", padx=pad + 2, pady=(0, pad))
 
-        # Button 1: CAPTURE (swaps to RETAKE when frozen)
+        # Button 1: CAPTURE (swaps to RETAKE when frozen, or PICK FROM FILE when no camera)
         self.capture_btn = self._button(
             btn_box, "CAPTURE LEAF", GREEN_PRIMARY, self.handle_capture_or_retake,
-            width=half_btn_w, height=btn_h, size=11, fg=WHITE, radius=px(22), parent_bg=BG
+            width=half_btn_w, height=btn_h, size=11, fg=WHITE, radius=px(21), parent_bg=BG
         )
         self.capture_btn.pack(side="left", padx=(0, px(4)))
 
         # Button 2: DIAGNOSE (Runs AI Inference)
         self.diagnose_btn = self._button(
             btn_box, "DIAGNOSE LEAF", CARD, self.handle_diagnose,
-            width=half_btn_w, height=btn_h, size=11, fg=WHITE, border=BORDER, radius=px(22), parent_bg=BG
+            width=half_btn_w, height=btn_h, size=11, fg=WHITE, border=BORDER, radius=px(21), parent_bg=BG
         )
         self.diagnose_btn.pack(side="right", padx=(px(4), 0))
 
         # 2. DIRECTLY ABOVE BUTTONS: IMAGE QUALITY AI STATUS BAR
-        quality_frame = tk.Frame(left, bg=PANEL, padx=px(6), pady=px(4))
-        quality_frame.pack(side="bottom", fill="x", padx=pad + 2, pady=(0, px(6)))
+        quality_frame = tk.Frame(left, bg=PANEL, padx=px(6), pady=px(3))
+        quality_frame.pack(side="bottom", fill="x", padx=pad + 2, pady=(0, px(4)))
 
         self.quality_lbl = tk.Label(
             quality_frame, text="Leaf Quality AI: Align leaf inside box",
@@ -1783,51 +1815,53 @@ class AgriLensApp:
         )
         self.quality_lbl.pack(fill="x")
 
-        # 3. LARGE CAMERA OUTPUT DISPLAY (Fills remaining upper space above quality text)
-        self.CAM_H = max(px(220), body_h - btn_h - px(52))
+        # 3. LARGE 4:3 FULL-FOV CAMERA OUTPUT DISPLAY (Matches 640x480 webcam aspect ratio so 100% FoV is visible)
+        avail_cam_h = max(px(240), body_h - btn_h - px(46))
+        fov_4_3_h = int(round(self.CAM_W * 3 / 4))
+        self.CAM_H = min(avail_cam_h, fov_4_3_h)
 
         self.cam_border = tk.Frame(left, bg=CARD, padx=2, pady=2)
-        self.cam_border.pack(side="top", pady=(pad, px(4)), expand=True)
+        self.cam_border.pack(side="top", pady=(pad, px(3)), expand=True)
 
         # Clean Camera Canvas with subtle targeting frame
         self.canvas = tk.Canvas(self.cam_border, width=self.CAM_W, height=self.CAM_H,
-                                bg="#000000", highlightthickness=0)
+                                bg="#050a07", highlightthickness=0)
         self.canvas.pack()
         self.canvas.bind("<Button-1>", lambda e: self.handle_capture_or_retake())
 
         cw, ch = self.CAM_W, self.CAM_H
         self.img_item = self.canvas.create_image(cw // 2, ch // 2, anchor="center")
 
-        # Leaf Alignment Targeting Box - Expanded to cover complete image area
+        # Leaf Alignment Targeting Box - Covers complete Full-FoV image area
         margin = px(3)
         self.guide = self.canvas.create_rectangle(
             margin, margin, cw - margin, ch - margin,
             outline=GREEN_ACCENT, width=px(2), dash=(8, 5)
         )
 
-        # Live webcam indicator overlay
+        # Live webcam / File Mode indicator overlay (left-aligned so longer labels never clip)
         self.live_badge = self.canvas.create_text(
-            px(58), px(16), fill=GREEN_ACCENT, font=self.f(9, True),
+            px(10), px(8), anchor="nw", fill=GREEN_ACCENT, font=self.f(9, True),
             text="LIVE WEBCAM"
         )
 
         self.msg_txt = self.canvas.create_text(
-            cw // 2, ch // 2, fill=MUTED, font=self.f(12),
+            cw // 2, ch // 2, fill=MUTED, font=self.f(11),
             justify="center", text="Connecting to webcam..."
         )
 
-        # RIGHT SIDE - Farmer Diagnosis & Recommendations
+        # RIGHT SIDE - Farmer Diagnosis & Recommendations (Arranged cleanly for 7" 1024x600 screen)
         right = tk.Frame(body, bg=PANEL, width=right_w - pad, height=body_h - 2 * pad)
         right.pack(side="left", fill="both", expand=True, padx=(0, pad), pady=pad)
         right.pack_propagate(False)
-        rp = px(12)
-        wrap = right_w - pad - 2 * rp - px(8)
+        rp = px(10)
+        wrap = right_w - pad - 2 * rp - px(6)
 
         self.banner_frame = tk.Frame(right, bg=GREY_BTN, padx=px(8), pady=px(5))
         self.banner_frame.pack(fill="x")
 
         self.banner = tk.Label(
-            self.banner_frame, text="READY — AIM LEAF AT CAMERA", font=self.f(13, True),
+            self.banner_frame, text="READY — AIM LEAF AT CAMERA", font=self.f(12, True),
             bg=GREY_BTN, fg=WHITE, pady=px(2), wraplength=wrap
         )
         self.banner.pack(fill="x")
@@ -1840,7 +1874,7 @@ class AgriLensApp:
 
         self.disease_lbl = tk.Label(
             info, text="Aim leaf inside box -> Tap CAPTURE -> Tap DIAGNOSE",
-            font=self.f(13, True), fg=WHITE, bg=PANEL, anchor="w",
+            font=self.f(12, True), fg=WHITE, bg=PANEL, anchor="w",
             justify="left", wraplength=wrap
         )
         self.disease_lbl.pack(fill="x")
@@ -1850,7 +1884,7 @@ class AgriLensApp:
         self.bar = tk.Canvas(info, width=self.BAR_W, height=self.BAR_H, bg=CARD, highlightthickness=0)
         self.bar.pack(anchor="w", pady=(px(5), 0))
 
-        tk.Frame(right, bg=BORDER, height=max(1, px(1))).pack(fill="x", padx=rp, pady=(px(8), px(4)))
+        tk.Frame(right, bg=BORDER, height=max(1, px(1))).pack(fill="x", padx=rp, pady=(px(7), px(4)))
 
         tk.Label(
             right, text="RECOMMENDED FARMER ACTIONS", font=self.f(10, True),
@@ -1877,13 +1911,13 @@ class AgriLensApp:
         for i in range(4):
             row = tk.Frame(steps_box, bg=PANEL)
             num = tk.Label(
-                row, text=str(i + 1), font=self.f(10, True),
+                row, text=str(i + 1), font=self.f(9, True),
                 bg=GREEN_PRIMARY, fg=WHITE, width=2
             )
-            num.pack(side="left", anchor="n", padx=(0, px(8)), pady=(px(1), 0))
+            num.pack(side="left", anchor="n", padx=(0, px(7)), pady=(px(1), 0))
             txt = tk.Label(
-                row, text="", font=self.f(10), fg=WHITE, bg=PANEL,
-                anchor="w", justify="left", wraplength=wrap - px(36)
+                row, text="", font=self.f(9), fg=WHITE, bg=PANEL,
+                anchor="w", justify="left", wraplength=wrap - px(32)
             )
             txt.pack(side="left", fill="x", expand=True)
             self.step_rows.append((row, num, txt))
@@ -2651,9 +2685,9 @@ class AgriLensApp:
         fill_w = max(4, int(self.FOCUS_BAR_W * (pct / 100.0)))
         self.focus_bar.create_rectangle(0, 0, fill_w, self.FOCUS_BAR_H, fill=f_col, width=0)
 
-        # Render live preview (with optional neon Focus Peaking overlay)
+        # Render live preview showing 100% of camera FoV (with optional neon Focus Peaking overlay)
         prev_img = self.camera.render_focus_peaking(frame) if self.camera.focus_peaking else frame
-        disp = ImageOps.fit(prev_img, (self.CAM_CTRL_W, self.CAM_CTRL_H), RESAMPLE)
+        disp = self._render_full_fov(prev_img, self.CAM_CTRL_W, self.CAM_CTRL_H)
         self._cam_ctrl_photo = ImageTk.PhotoImage(disp)
         self.cam_ctrl_canvas.itemconfig(self.cam_ctrl_img_item, image=self._cam_ctrl_photo)
         self.cam_ctrl_canvas.itemconfig(self.cam_ctrl_msg, text="")
@@ -2784,18 +2818,25 @@ class AgriLensApp:
 
         poll_scan()
 
+    def _has_camera(self):
+        return bool(self.camera and self.camera.kind != "none")
+
     def _on_detect_webcam_finished(self, ok, msg):
         if ok:
+            self.paused = False
+            self.captured_frame = None
             self.webcam_status_lbl.config(text=f"Connected:\n{self.camera.kind}", fg=GREEN_PRIMARY)
             self.detect_msg_lbl.config(text="SUCCESS: Webcam connected and active!", fg=GREEN_PRIMARY)
             self.canvas.itemconfig(self.msg_txt, text="")
+            self._reset_panel()
             self._update_stats_bar()
             self.detect_btn.config(state="normal", text="DETECT WEBCAM")
             self.root.after(750, self.close_overlays)
         else:
-            self.webcam_status_lbl.config(text="Current Status: No Webcam Found", fg=RED_ALERT)
-            self.detect_msg_lbl.config(text=msg, fg=RED_ALERT)
-            self.canvas.itemconfig(self.msg_txt, text="No webcam connected.\nPlease check the USB camera connection.")
+            self.webcam_status_lbl.config(text="Current Status: No Webcam Found (File Mode Active)", fg=AMBER_WARN)
+            self.detect_msg_lbl.config(text=f"{msg} — Using PICK FROM FILE mode.", fg=AMBER_WARN)
+            if not self.paused:
+                self._reset_panel()
             self._update_stats_bar()
             self.detect_btn.config(state="normal", text="DETECT WEBCAM")
 
@@ -2815,6 +2856,7 @@ class AgriLensApp:
     # ---- 6. Live Camera Loop & AI Pipeline (Non-Blocking Async Bootstrap) ----
     def _start_async_bootstrap(self):
         # Force initial paint so the UI is visible, responsive, and avoids "Not Responding"
+        ensure_diagnosis_samples_dir()
         self.root.update_idletasks()
         self._init_queue = queue.Queue()
 
@@ -2845,14 +2887,6 @@ class AgriLensApp:
         self.crops = crops
         self.plants = plants
 
-        if self.camera.kind == "none":
-            self.canvas.itemconfig(
-                self.msg_txt,
-                text="No webcam connected.\nPlease plug in USB camera or click ADMIN."
-            )
-        else:
-            self.canvas.itemconfig(self.msg_txt, text="")
-
         self._reset_panel()
         self._update_stats_bar()
         self._preview_loop()
@@ -2861,7 +2895,7 @@ class AgriLensApp:
         if not self.running:
             return
         cam_panel_open = hasattr(self, "cam_panel") and self.cam_panel.winfo_ismapped()
-        if (not self.paused or cam_panel_open) and self.camera and self.camera.kind != "none":
+        if (not self.paused or cam_panel_open) and self._has_camera():
             frame = self.camera.read()
             if frame is not None:
                 if not self.paused:
@@ -2869,11 +2903,9 @@ class AgriLensApp:
                     self._show_image(frame)
                 if cam_panel_open:
                     self._update_camera_panel_preview(frame)
-            elif self.camera.kind == "none":
-                self.canvas.itemconfig(
-                    self.msg_txt,
-                    text="Webcam disconnected.\nPlease check USB connection or click ADMIN."
-                )
+            elif not self._has_camera():
+                if not self.paused:
+                    self._reset_panel()
                 if cam_panel_open:
                     self._update_camera_panel_preview(None)
                 self._update_stats_bar()
@@ -2881,20 +2913,62 @@ class AgriLensApp:
             self._update_camera_panel_preview(None)
         self.root.after(int(1000 / PREVIEW_FPS), self._preview_loop)
 
+    def _render_full_fov(self, img, target_w, target_h):
+        """Scales image to display 100% of the complete Field of View (zero edge cropping)."""
+        iw, ih = img.size
+        if iw <= 0 or ih <= 0:
+            return img.resize((target_w, target_h), RESAMPLE)
+        scale = min(target_w / iw, target_h / ih)
+        nw = max(1, int(round(iw * scale)))
+        nh = max(1, int(round(ih * scale)))
+        resized = img.resize((nw, nh), RESAMPLE)
+        if nw == target_w and nh == target_h:
+            return resized
+        canvas_im = Image.new("RGB", (target_w, target_h), (5, 10, 7))
+        canvas_im.paste(resized, ((target_w - nw) // 2, (target_h - nh) // 2))
+        return canvas_im
+
     def _show_image(self, img):
-        disp = ImageOps.fit(img, (self.CAM_W, self.CAM_H), RESAMPLE)
+        disp = self._render_full_fov(img, self.CAM_W, self.CAM_H)
         self._photo = ImageTk.PhotoImage(disp)
         self.canvas.itemconfig(self.img_item, image=self._photo)
         self.canvas.itemconfig(self.msg_txt, text="")
 
     def _reset_panel(self):
+        has_cam = self._has_camera()
         self.banner_frame.config(bg=GREY_BTN)
-        self.banner.config(text="READY — AIM LEAF AT CAMERA", bg=GREY_BTN, fg=WHITE)
         if self.selected_plant is None:
             self.plant_lbl.config(text="Mode: Auto-Detect (Beta Production)")
         else:
             self.plant_lbl.config(text=f"Selected Plant: {self.selected_plant.upper()}")
-        self.disease_lbl.config(text="Aim leaf inside box -> Tap CAPTURE -> Tap DIAGNOSE")
+
+        if has_cam:
+            self.banner.config(text="READY — AIM LEAF AT CAMERA", bg=GREY_BTN, fg=WHITE)
+            self.disease_lbl.config(text="Aim leaf inside box -> Tap CAPTURE -> Tap DIAGNOSE")
+            self.capture_btn.config(text="CAPTURE LEAF", bg=GREEN_PRIMARY, fg=WHITE)
+            self.canvas.itemconfig(self.live_badge, text="LIVE WEBCAM", fill=GREEN_ACCENT)
+            self.canvas.itemconfig(self.msg_txt, text="")
+            self.quality_lbl.config(text="Leaf Quality AI: Align leaf inside box", fg=MUTED)
+        else:
+            self.banner.config(text="READY — PICK LEAF IMAGE FROM FILE", bg=GREY_BTN, fg=WHITE)
+            self.disease_lbl.config(text="Tap PICK FROM FILE -> Select leaf image -> Tap DIAGNOSE")
+            self.capture_btn.config(text="PICK FROM FILE", bg=GREEN_PRIMARY, fg=WHITE)
+            self.canvas.itemconfig(self.live_badge, text="FILE MODE (NO CAMERA)", fill=AMBER_WARN)
+            if not self.paused:
+                self.canvas.itemconfig(
+                    self.msg_txt,
+                    text=(
+                        "No camera connected — File Mode Active\n\n"
+                        "Tap 'PICK FROM FILE' below (or click here)\n"
+                        "Folder: diagnosis_samples/ (Apple, Mango, Potato, Tomato)"
+                    )
+                )
+            self.quality_lbl.config(
+                text="File Mode: Pick leaf image from diagnosis_samples/ (Apple, Mango, Potato, Tomato)",
+                fg=MUTED
+            )
+
+        self.diagnose_btn.config(text="DIAGNOSE LEAF", bg=CARD, fg=WHITE)
         self._draw_bar(0, GREY_BTN, "Waiting for leaf...")
         for row, num, txt in self.step_rows:
             num.config(bg=GREEN_PRIMARY, fg=WHITE)
@@ -2902,9 +2976,82 @@ class AgriLensApp:
             row.pack_forget()
         self.cam_border.config(bg=CARD)
 
-    # ---- 7. SEPARATE ACTIONS: Capture, Retake, and Diagnose ----
+    # ---- 7. SEPARATE ACTIONS: Capture / Pick from File, Retake, and Diagnose ----
+    def pick_image_from_file(self):
+        """Opens file picker inside the fixed diagnosis_samples/ folder structure when camera is unavailable."""
+        base_dir = ensure_diagnosis_samples_dir()
+        init_dir = base_dir
+        if self.selected_plant:
+            cand = os.path.join(base_dir, self.selected_plant)
+            if os.path.isdir(cand):
+                init_dir = cand
+
+        try:
+            self.root.attributes("-topmost", False)
+        except Exception:
+            pass
+
+        filepath = filedialog.askopenfilename(
+            parent=self.root,
+            initialdir=init_dir,
+            title="Select Leaf Image for Diagnosis (diagnosis_samples)",
+            filetypes=[
+                ("Leaf Images", "*.jpg *.jpeg *.png *.bmp *.webp *.JPG *.JPEG *.PNG"),
+                ("All Files", "*.*"),
+            ],
+        )
+        if not filepath or not os.path.isfile(filepath):
+            return False
+
+        try:
+            with Image.open(filepath) as raw_im:
+                loaded_img = raw_im.convert("RGB")
+        except Exception as e:
+            self.quality_lbl.config(text=f"Could not open image file: {e}", fg=RED_ALERT)
+            return False
+
+        self.latest_frame = loaded_img
+        self.last_probs = None
+        self.last_raw_out = None
+        isolated_leaf, outline_ok, info = LeafOutlineSegmenter.extract_leaf(loaded_img)
+
+        self.paused = True
+        self.canvas.itemconfig(self.guide, state="hidden")
+        short_name = os.path.basename(filepath)
+        if len(short_name) > 26:
+            short_name = short_name[:23] + "..."
+
+        if outline_ok and isolated_leaf is not None:
+            self.captured_frame = isolated_leaf
+            self._show_image(self.captured_frame)
+            self.canvas.itemconfig(self.live_badge, text=f"FILE ROI: {short_name}", fill=GREEN_ACCENT)
+
+            score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
+            self.quality_lbl.config(text=f"File Loaded ({short_name}) | {q_msg}", fg=q_color)
+            self.banner_frame.config(bg=GREEN_PRIMARY)
+            self.banner.config(text="LEAF IMAGE LOADED — READY TO DIAGNOSE", bg=GREEN_PRIMARY, fg=WHITE)
+            self.disease_lbl.config(text="Leaf image loaded from file. Tap DIAGNOSE NOW.")
+        else:
+            self.captured_frame = loaded_img
+            self._show_image(self.captured_frame)
+            self.canvas.itemconfig(self.live_badge, text=f"FILE: {short_name}", fill=AMBER_WARN)
+
+            score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
+            self.quality_lbl.config(text=f"File Loaded ({short_name}) | {q_msg}", fg=q_color)
+            self.banner_frame.config(bg=CARD)
+            self.banner.config(text="IMAGE LOADED (FULL FRAME) — READY TO DIAGNOSE", bg=CARD, fg=WHITE)
+            self.disease_lbl.config(text="Image loaded from file. Tap DIAGNOSE NOW.")
+
+        self.capture_btn.config(text="PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
+        self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+        return True
+
     def handle_capture_or_retake(self):
-        """Toggles between CAPTURE (detect leaf ROI or fallback to full image) and RETAKE."""
+        """Toggles between CAPTURE/RETAKE when camera is available, or PICK FROM FILE when no camera is connected."""
+        if not self._has_camera():
+            self.pick_image_from_file()
+            return
+
         if not self.paused:
             # 1. ACTION: CAPTURE
             if self.latest_frame is not None:
@@ -2938,7 +3085,7 @@ class AgriLensApp:
                 self.capture_btn.config(text="RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
                 self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
             else:
-                self.quality_lbl.config(text="Camera not ready. Plug in webcam and tap ADMIN.", fg=RED_ALERT)
+                self.quality_lbl.config(text="Camera not ready. Tap PICK FROM FILE or check USB webcam.", fg=RED_ALERT)
         else:
             # 2. ACTION: RETAKE (Unfreeze)
             self.paused = False
@@ -2946,16 +3093,15 @@ class AgriLensApp:
             self.last_probs = None
             self.last_raw_out = None
             self.canvas.itemconfig(self.guide, state="normal")
-            self.canvas.itemconfig(self.live_badge, text="LIVE WEBCAM", fill=GREEN_ACCENT)
-
-            self.quality_lbl.config(text="Leaf Quality AI: Align leaf inside box", fg=MUTED)
-            self.capture_btn.config(text="CAPTURE LEAF", bg=GREEN_PRIMARY, fg=WHITE)
-            self.diagnose_btn.config(text="DIAGNOSE LEAF", bg=CARD, fg=WHITE)
             self._reset_panel()
             self._update_stats_bar()
 
     def handle_diagnose(self):
-        """Runs 98.31% MobileNetV4 inference on the captured (or current) frame."""
+        """Runs MobileNetV4 inference on the captured (or file-loaded) frame."""
+        if not self._has_camera() and self.captured_frame is None:
+            if not self.pick_image_from_file():
+                return
+
         if self.captured_frame is None and self.latest_frame is not None:
             # If user directly pressed DIAGNOSE while live, attempt outline capture or fallback
             isolated_leaf, outline_ok, info = LeafOutlineSegmenter.extract_leaf(self.latest_frame)
@@ -2971,12 +3117,15 @@ class AgriLensApp:
             self.canvas.itemconfig(self.guide, state="hidden")
             score, rating, q_msg, q_color = LeafQualityAI.assess(self.captured_frame, self.sharpness_min)
             self.quality_lbl.config(text=q_msg, fg=q_color)
-            self.capture_btn.config(text="RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+            self.capture_btn.config(text="RETAKE LEAF" if self._has_camera() else "PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
             self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
 
         target_img = self.captured_frame if self.captured_frame is not None else self.latest_frame
         if target_img is None:
-            self.disease_lbl.config(text="No leaf image captured! Please aim at leaf and tap CAPTURE.")
+            if self._has_camera():
+                self.disease_lbl.config(text="No leaf image captured! Please aim at leaf and tap CAPTURE.")
+            else:
+                self.disease_lbl.config(text="No image selected! Tap PICK FROM FILE to load a leaf image.")
             return
 
         if self.classifier:
