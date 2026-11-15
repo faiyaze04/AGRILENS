@@ -150,8 +150,8 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "4.9.2"
-BUILD_TIMESTAMP = "2026-11-15 14:36 IST"
+APP_VERSION = "4.9.3"
+BUILD_TIMESTAMP = "2026-11-15 17:12 IST"
 MODEL_SHA256 = "0b5bb7fb3916a7c1138f90cfc9abfdc130f06495a34282d474e52718b072ff80"
 OTA_REPO_RAW_BASE = "https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi"
 
@@ -1889,19 +1889,19 @@ class AgriLensApp:
         self.root.after(100, lambda: self.root.attributes("-fullscreen", True))
 
         self.S = min(self.W / 1024, self.H / 600)
-        self.TOP_H = self.px(48)
+        self.TOP_H = self.px(60)
 
     def px(self, val):
         return max(1, round(val * self.S))
 
     def f(self, size, bold=False):
-        return (FONT, max(8, round(size * self.S)), "bold" if bold else "normal")
+        return (FONT, max(9, round(size * self.S)), "bold" if bold else "normal")
 
-    def _button(self, parent, text, bg, cmd, width=None, height=None, size=11, fg=None, radius=None, border=None, parent_bg=None):
+    def _button(self, parent, text, bg, cmd, width=None, height=None, size=12, fg=None, radius=None, border=None, parent_bg=None):
         if fg is None:
             fg = DARK if bg in (WHITE, GREEN_ACCENT, GREEN_GLOW) else WHITE
         if height is None:
-            height = self.px(38)
+            height = self.px(44)
         if parent_bg is None:
             try:
                 parent_bg = parent.cget("bg")
@@ -2072,20 +2072,20 @@ class AgriLensApp:
         if os.path.exists(logo_path):
             try:
                 raw_logo = Image.open(logo_path)
-                lh = px(38)
+                lh = px(44)
                 aspect = raw_logo.width / max(1, raw_logo.height)
                 lw = max(1, int(lh * aspect))
                 resized = raw_logo.resize((lw, lh), RESAMPLE)
 
-                pad_x, pad_y = px(4), px(2)
+                pad_x, pad_y = px(5), px(3)
                 bw, bh = lw + 2 * pad_x, lh + 2 * pad_y
                 scale = 2
                 badge_im = Image.new("RGBA", (bw * scale, bh * scale), (0, 0, 0, 0))
                 d = ImageDraw.Draw(badge_im)
                 d.rounded_rectangle(
                     [0, 0, bw * scale - 1, bh * scale - 1],
-                    radius=px(10) * scale,
-                    fill=(255, 255, 255, 245),
+                    radius=px(12) * scale,
+                    fill=(255, 255, 255, 248),
                     outline=(210, 220, 215, 255),
                     width=scale
                 )
@@ -2096,62 +2096,79 @@ class AgriLensApp:
                 logo_lbl = tk.Label(
                     parent, image=self._school_logo_photo, bg=PANEL, cursor="hand2", bd=0
                 )
-                logo_lbl.pack(side="right", padx=(px(4), px(12)), pady=px(5))
+                logo_lbl.pack(side="right", padx=(px(6), px(12)), pady=px(5))
                 logo_lbl.bind("<Button-1>", lambda e: webbrowser.open("https://www.gundechaedu.org/"))
                 ToolTip(logo_lbl, "Gundecha Education Academy", "Official Partner Institution\nClick to open official portal: gundechaedu.org", font_family=FONT)
                 return
             except Exception as e:
                 print("Notice: logo load error:", e)
 
-        school_box = tk.Frame(parent, bg=WHITE, padx=px(6), pady=px(2))
-        school_box.pack(side="right", padx=(px(4), px(12)), pady=px(8))
-        tk.Label(school_box, text="GEA", font=self.f(11, True), fg=DARK, bg=WHITE).pack()
+        school_box = tk.Frame(parent, bg=WHITE, padx=px(8), pady=px(4))
+        school_box.pack(side="right", padx=(px(6), px(12)), pady=px(10))
+        tk.Label(school_box, text="GEA", font=self.f(12, True), fg=DARK, bg=WHITE).pack()
 
     def _build_top_bar(self):
         px = self.px
-        top = tk.Frame(self.root, bg=PANEL, height=self.TOP_H)
+        top = tk.Frame(
+            self.root, bg=PANEL, height=self.TOP_H,
+            highlightbackground=BORDER, highlightthickness=max(1, px(1))
+        )
         top.pack(side="top", fill="x")
         top.pack_propagate(False)
 
-        # Crop Filter Button (Auto - Beta)
-        self.plant_btn = self._button(
-            top, "SELECT CROP (AUTO)", CARD, self.open_plant_picker,
-            height=px(38), size=10, fg=WHITE, border=BORDER, parent_bg=PANEL
-        )
-        self.plant_btn.pack(side="left", padx=(px(10), px(4)), pady=px(7))
-
-        # Mode Selector Dropdown Button (Live Mode vs File Mode)
-        self.mode_btn = self._button(
-            top, "MODE: LIVE MODE ▾", CARD, self.toggle_mode_dropdown,
-            width=px(164), height=px(38), size=10, fg=WHITE, border=GREEN_ACCENT, parent_bg=PANEL
-        )
-        self.mode_btn.pack(side="left", padx=(px(2), px(6)), pady=px(7))
-
-        # Header Title
+        # 1. Left: Brand Header Title (AGRILENS + Subtitle)
         title_box = tk.Frame(top, bg=PANEL)
-        title_box.pack(side="left", padx=px(8), fill="y")
-        lbl_brand = tk.Label(title_box, text="AGRILENS", font=self.f(14, True), fg=WHITE, bg=PANEL, cursor="hand2")
+        title_box.pack(side="left", padx=(px(12), px(6)))
+        lbl_brand = tk.Label(title_box, text="AGRILENS", font=self.f(17, True), fg=WHITE, bg=PANEL, cursor="hand2")
         lbl_brand.pack(anchor="w")
         ToolTip(lbl_brand, "AGRILENS Edge Vision Kiosk", f"Version: v{APP_VERSION}\nBuild: {BUILD_TIMESTAMP}\nModel: MobileNetV4 ONNX (24 Classes)", font_family=FONT)
-        self.brand_sub_lbl = tk.Label(title_box, text="AI Agricultural Health Diagnostics", font=self.f(8, True), fg=GREEN_ACCENT, bg=PANEL)
+        self.brand_sub_lbl = tk.Label(
+            title_box, text="AI Agricultural Health Diagnostics",
+            font=self.f(9, True), fg=GREEN_ACCENT, bg=PANEL
+        )
         self.brand_sub_lbl.pack(anchor="w")
 
-        # Far Right: Official Gundecha Education Academy Logo
+        # 2. Far Right: Official Gundecha Education Academy Logo
         self._build_school_logo(top)
 
-        # ADMIN BUTTON (Direct entry — password disabled)
-        self.admin_btn = self._button(
-            top, "ADMIN", CARD, self.open_admin_panel,
-            width=px(84), height=px(38), size=10, fg=WHITE, border=BORDER, parent_bg=PANEL
-        )
-        self.admin_btn.pack(side="right", padx=(px(4), px(6)), pady=px(7))
+        # 3. Unified Top Selection & Control Bar (All 4 buttons grouped & aligned together)
+        self.top_btn_bar = tk.Frame(top, bg=PANEL)
+        self.top_btn_bar.pack(side="right", padx=(px(4), px(6)), pady=px(7))
 
-        # LANGUAGE TOGGLE BUTTON (Hindi / English — Main Screen Only)
-        self.lang_btn = self._button(
-            top, "🌐 हिंदी / EN", CARD, self.toggle_language,
-            width=px(110), height=px(38), size=10, fg=WHITE, border=GREEN_ACCENT, parent_bg=PANEL
+        top_btn_h = px(44)
+        top_btn_r = px(14)
+
+        # Button A: Crop Filter Button (Auto - Beta)
+        self.plant_btn = self._button(
+            self.top_btn_bar, "🌱 CROP: AUTO (ALL)", CARD, self.open_plant_picker,
+            width=px(192), height=top_btn_h, size=11, radius=top_btn_r,
+            fg=WHITE, border=GREEN_ACCENT, parent_bg=PANEL
         )
-        self.lang_btn.pack(side="right", padx=(px(4), px(4)), pady=px(7))
+        self.plant_btn.pack(side="left", padx=px(4))
+
+        # Button B: Mode Selector Dropdown Button (Live Mode vs File Mode)
+        self.mode_btn = self._button(
+            self.top_btn_bar, "📷 MODE: LIVE ▾", CARD, self.toggle_mode_dropdown,
+            width=px(176), height=top_btn_h, size=11, radius=top_btn_r,
+            fg=WHITE, border=GREEN_ACCENT, parent_bg=PANEL
+        )
+        self.mode_btn.pack(side="left", padx=px(4))
+
+        # Button C: Language Toggle Button (Hindi / English — Main Screen Only)
+        self.lang_btn = self._button(
+            self.top_btn_bar, "🌐 हिंदी / EN", CARD, self.toggle_language,
+            width=px(142), height=top_btn_h, size=11, radius=top_btn_r,
+            fg=WHITE, border=GREEN_ACCENT, parent_bg=PANEL
+        )
+        self.lang_btn.pack(side="left", padx=px(4))
+
+        # Button D: Admin Console Button
+        self.admin_btn = self._button(
+            self.top_btn_bar, "⚙ ADMIN", CARD, self.open_admin_panel,
+            width=px(114), height=top_btn_h, size=11, radius=top_btn_r,
+            fg=WHITE, border=BORDER, parent_bg=PANEL
+        )
+        self.admin_btn.pack(side="left", padx=px(4))
 
         self._build_mode_dropdown()
 
@@ -2173,15 +2190,21 @@ class AgriLensApp:
 
         if hasattr(self, "brand_sub_lbl"):
             self.brand_sub_lbl.config(
-                text="एआई कृषि स्वास्थ्य निदान (AI Crop Diagnostics)" if is_hi else "AI Agricultural Health Diagnostics"
+                text="एआई कृषि स्वास्थ्य निदान" if is_hi else "AI Agricultural Health Diagnostics"
             )
 
         if hasattr(self, "plant_btn"):
             if self.selected_plant is None:
-                self.plant_btn.config(text="फसल चुनें (ऑटो)" if is_hi else "SELECT CROP (AUTO)")
+                self.plant_btn.config(
+                    text=("🌱 फसल: ऑटो (सभी)" if is_hi else "🌱 CROP: AUTO (ALL)"),
+                    bg=CARD, border=GREEN_ACCENT, fg=WHITE
+                )
             else:
                 p_txt = translate_crop_hi(self.selected_plant) if is_hi else self.selected_plant.upper()
-                self.plant_btn.config(text=f"फसल: {p_txt}" if is_hi else f"CROP: {p_txt}")
+                self.plant_btn.config(
+                    text=(f"🌱 फसल: {p_txt}" if is_hi else f"🌱 CROP: {p_txt}"),
+                    bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE
+                )
 
         if hasattr(self, "rec_hdr_lbl"):
             self.rec_hdr_lbl.config(
@@ -2205,7 +2228,7 @@ class AgriLensApp:
                 if is_hi else "Auto-detection mode automatically identifies all supported plant species"
             )
         if hasattr(self, "picker_back_btn"):
-            self.picker_back_btn.config(text="स्कैनर पर वापस जाएं" if is_hi else "REVERT TO SCANNER")
+            self.picker_back_btn.config(text="← स्कैनर पर वापस जाएं" if is_hi else "← REVERT TO SCANNER")
 
         self._refresh_mode_ui()
 
@@ -2222,14 +2245,14 @@ class AgriLensApp:
                     fg=q_color
                 )
                 if is_live:
-                    self.capture_btn.config(text="पुनः फोटो लें" if is_hi else "RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+                    self.capture_btn.config(text="↺  पुनः फोटो लें" if is_hi else "↺  RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
                     self.canvas.itemconfig(
                         self.live_badge,
                         text="फोटो ली गई — क्रॉप करने हेतु हैंडल खींचें" if is_hi else "CAPTURED — DRAG HANDLES TO CROP",
                         fill=GREEN_ACCENT
                     )
                 else:
-                    self.capture_btn.config(text="फाइल से चुनें" if is_hi else "PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
+                    self.capture_btn.config(text="📂  फाइल से चुनें" if is_hi else "📂  PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
                     fn = self.last_file_short_name or "Sample"
                     self.canvas.itemconfig(
                         self.live_badge,
@@ -2243,7 +2266,7 @@ class AgriLensApp:
                         text=(f"पत्ती का भाग चुनने के लिए हैंडल खींचें | {q_msg}" if is_hi else f"Drag handles to select leaf area | {q_msg}"),
                         fg=q_color
                     )
-                    self.capture_btn.config(text="पुनः फोटो लें" if is_hi else "RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+                    self.capture_btn.config(text="↺  पुनः फोटो लें" if is_hi else "↺  RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
                     self.canvas.itemconfig(
                         self.live_badge,
                         text="फोटो ली गई — क्रॉप करने हेतु हैंडल खींचें" if is_hi else "CAPTURED — DRAG HANDLES TO CROP",
@@ -2255,7 +2278,7 @@ class AgriLensApp:
                         text=(f"पत्ती क्रॉप करने के लिए हैंडल खींचें ({fn}) | {q_msg}" if is_hi else f"Drag handles to crop leaf ({fn}) | {q_msg}"),
                         fg=q_color
                     )
-                    self.capture_btn.config(text="फाइल से चुनें" if is_hi else "PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
+                    self.capture_btn.config(text="📂  फाइल से चुनें" if is_hi else "📂  PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
                     self.canvas.itemconfig(
                         self.live_badge,
                         text=(f"फाइल: {fn} (क्रॉप समायोजित करें)" if is_hi else f"FILE: {fn} (ADJUST CROP)"),
@@ -2273,7 +2296,7 @@ class AgriLensApp:
                         "Drag green handles to select exact leaf area, then tap DIAGNOSE NOW."
                     )
                 )
-                self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+                self.diagnose_btn.config(text="🔍  अभी जांचें" if is_hi else "🔍  DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
         else:
             self._reset_panel()
 
@@ -2282,26 +2305,26 @@ class AgriLensApp:
         self.mode_dropdown = tk.Frame(
             self.root, bg=PANEL,
             highlightbackground=GREEN_ACCENT, highlightthickness=max(1, px(2)),
-            padx=px(10), pady=px(10)
+            padx=px(12), pady=px(12)
         )
         self.mode_dd_hdr = tk.Label(
             self.mode_dropdown, text="SELECT INPUT MODE",
-            font=self.f(9, True), fg=MUTED, bg=PANEL, anchor="w"
+            font=self.f(10, True), fg=MUTED, bg=PANEL, anchor="w"
         )
-        self.mode_dd_hdr.pack(fill="x", pady=(0, px(6)))
+        self.mode_dd_hdr.pack(fill="x", pady=(0, px(8)))
 
         self.mode_opt_live = self._button(
             self.mode_dropdown, "●  LIVE MODE (Camera)", GREEN_PRIMARY,
             lambda: self._on_mode_dropdown_select("LIVE"),
-            width=px(230), height=px(44), size=10, fg=WHITE, radius=px(12),
+            width=px(250), height=px(50), size=11, fg=WHITE, radius=px(14),
             border=GREEN_ACCENT, parent_bg=PANEL
         )
-        self.mode_opt_live.pack(pady=(0, px(6)))
+        self.mode_opt_live.pack(pady=(0, px(8)))
 
         self.mode_opt_file = self._button(
             self.mode_dropdown, "○  FILE MODE (Sample Files)", CARD,
             lambda: self._on_mode_dropdown_select("FILE"),
-            width=px(230), height=px(44), size=10, fg=WHITE, radius=px(12),
+            width=px(250), height=px(50), size=11, fg=WHITE, radius=px(14),
             border=BORDER, parent_bg=PANEL
         )
         self.mode_opt_file.pack()
@@ -2318,12 +2341,12 @@ class AgriLensApp:
         if hasattr(self, "mode_btn"):
             if is_live:
                 self.mode_btn.config(
-                    text=("मोड: लाइव कैमरा ▾" if is_hi else "MODE: LIVE MODE ▾"),
+                    text=("📷 मोड: लाइव ▾" if is_hi else "📷 MODE: LIVE ▾"),
                     bg=CARD, border=GREEN_ACCENT, fg=WHITE
                 )
             else:
                 self.mode_btn.config(
-                    text=("मोड: फाइल मोड ▾" if is_hi else "MODE: FILE MODE ▾"),
+                    text=("📂 मोड: फाइल ▾" if is_hi else "📂 MODE: FILE ▾"),
                     bg=CARD, border=AMBER_WARN, fg=AMBER_WARN
                 )
         if hasattr(self, "mode_opt_live") and hasattr(self, "mode_opt_file"):
@@ -2352,7 +2375,9 @@ class AgriLensApp:
             return
         self._refresh_mode_ui()
         self.root.update_idletasks()
-        bx = self.mode_btn.winfo_x()
+        bx = self.mode_btn.winfo_rootx() - self.root.winfo_rootx()
+        max_x = max(self.px(10), self.W - self.px(280))
+        bx = max(self.px(10), min(bx, max_x))
         by = self.TOP_H + self.px(2)
         self.mode_dropdown.place(x=bx, y=by)
         self.mode_dropdown.lift()
@@ -2421,7 +2446,7 @@ class AgriLensApp:
 
         self.CAM_W = left_w - 2 * pad - 4
         half_btn_w = self.CAM_W // 2 - px(5)
-        btn_h = px(42)
+        btn_h = px(52)
 
         # 1. BOTTOM: SEPARATE ACTION BUTTONS BAR ([CAPTURE LEAF / PICK FROM FILE] and [DIAGNOSE LEAF])
         btn_box = tk.Frame(left, bg=BG)
@@ -2429,31 +2454,34 @@ class AgriLensApp:
 
         # Button 1: CAPTURE (swaps to RETAKE when frozen, or PICK FROM FILE when no camera)
         self.capture_btn = self._button(
-            btn_box, "CAPTURE LEAF", GREEN_PRIMARY, self.handle_capture_or_retake,
-            width=half_btn_w, height=btn_h, size=11, fg=WHITE, radius=px(21), parent_bg=BG
+            btn_box, "📸  CAPTURE LEAF", GREEN_PRIMARY, self.handle_capture_or_retake,
+            width=half_btn_w, height=btn_h, size=13, fg=WHITE, radius=px(18), parent_bg=BG
         )
         self.capture_btn.pack(side="left", padx=(0, px(4)))
 
         # Button 2: DIAGNOSE (Runs AI Inference)
         self.diagnose_btn = self._button(
-            btn_box, "DIAGNOSE LEAF", CARD, self.handle_diagnose,
-            width=half_btn_w, height=btn_h, size=11, fg=WHITE, border=BORDER, radius=px(21), parent_bg=BG
+            btn_box, "🔍  DIAGNOSE LEAF", CARD, self.handle_diagnose,
+            width=half_btn_w, height=btn_h, size=13, fg=WHITE, border=GREEN_ACCENT, radius=px(18), parent_bg=BG
         )
         self.diagnose_btn.pack(side="right", padx=(px(4), 0))
 
         # 2. DIRECTLY ABOVE BUTTONS: IMAGE QUALITY AI STATUS BAR
-        quality_frame = tk.Frame(left, bg=PANEL, padx=px(6), pady=px(3))
-        quality_frame.pack(side="bottom", fill="x", padx=pad + 2, pady=(0, px(4)))
+        quality_frame = tk.Frame(
+            left, bg=PANEL, padx=px(8), pady=px(5),
+            highlightbackground=BORDER, highlightthickness=max(1, px(1))
+        )
+        quality_frame.pack(side="bottom", fill="x", padx=pad + 2, pady=(0, px(5)))
 
         self.quality_lbl = tk.Label(
             quality_frame, text="Leaf Quality AI: Align leaf inside box",
-            font=self.f(9, True), fg=MUTED, bg=PANEL, anchor="center",
-            wraplength=self.CAM_W - px(12)
+            font=self.f(10, True), fg=MUTED, bg=PANEL, anchor="center",
+            wraplength=self.CAM_W - px(14)
         )
         self.quality_lbl.pack(fill="x")
 
         # 3. LARGE 4:3 FULL-FOV CAMERA OUTPUT DISPLAY (Matches 640x480 webcam aspect ratio so 100% FoV is visible)
-        avail_cam_h = max(px(240), body_h - btn_h - px(46))
+        avail_cam_h = max(px(240), body_h - btn_h - px(54))
         fov_4_3_h = int(round(self.CAM_W * 3 / 4))
         self.CAM_H = min(avail_cam_h, fov_4_3_h)
 
@@ -2512,66 +2540,69 @@ class AgriLensApp:
             )
 
         self.crop_info_badge = self.canvas.create_text(
-            cw - px(10), ch - px(8), anchor="se", fill=WHITE, font=self.f(8, True),
+            cw - px(10), ch - px(8), anchor="se", fill=WHITE, font=self.f(9, True),
             text="DRAG HANDLES TO CROP LEAF  •  DOUBLE-TAP: FULL", state="hidden", tags=("crop_ui",)
         )
 
         # Live webcam / File Mode indicator overlay (left-aligned so longer labels never clip)
         self.live_badge = self.canvas.create_text(
-            px(10), px(8), anchor="nw", fill=GREEN_ACCENT, font=self.f(9, True),
+            px(10), px(8), anchor="nw", fill=GREEN_ACCENT, font=self.f(10, True),
             text="LIVE WEBCAM"
         )
 
         self.msg_txt = self.canvas.create_text(
-            cw // 2, ch // 2, fill=MUTED, font=self.f(11),
+            cw // 2, ch // 2, fill=MUTED, font=self.f(12, True),
             justify="center", text="Connecting to webcam..."
         )
 
         # RIGHT SIDE - Farmer Diagnosis & Recommendations (Arranged cleanly for 7" 1024x600 screen)
-        right = tk.Frame(body, bg=PANEL, width=right_w - pad, height=body_h - 2 * pad)
+        right = tk.Frame(
+            body, bg=PANEL, width=right_w - pad, height=body_h - 2 * pad,
+            highlightbackground=BORDER, highlightthickness=max(1, px(1))
+        )
         right.pack(side="left", fill="both", expand=True, padx=(0, pad), pady=pad)
         right.pack_propagate(False)
-        rp = px(10)
-        wrap = right_w - pad - 2 * rp - px(6)
+        rp = px(12)
+        wrap = right_w - pad - 2 * rp - px(8)
 
-        self.banner_frame = tk.Frame(right, bg=GREY_BTN, padx=px(8), pady=px(5))
+        self.banner_frame = tk.Frame(right, bg=GREY_BTN, padx=px(10), pady=px(6))
         self.banner_frame.pack(fill="x")
 
         self.banner = tk.Label(
-            self.banner_frame, text="READY — AIM LEAF AT CAMERA", font=self.f(12, True),
+            self.banner_frame, text="READY — AIM LEAF AT CAMERA", font=self.f(13, True),
             bg=GREY_BTN, fg=WHITE, pady=px(2), wraplength=wrap
         )
         self.banner.pack(fill="x")
 
         info = tk.Frame(right, bg=PANEL)
-        info.pack(fill="x", padx=rp, pady=(px(6), 0))
+        info.pack(fill="x", padx=rp, pady=(px(7), 0))
 
-        self.plant_lbl = tk.Label(info, text="Mode: Auto-Detect (Beta Production)", font=self.f(10, True), fg=GREEN_ACCENT, bg=PANEL, anchor="w")
+        self.plant_lbl = tk.Label(info, text="Mode: Auto-Detect (Beta Production)", font=self.f(11, True), fg=GREEN_ACCENT, bg=PANEL, anchor="w")
         self.plant_lbl.pack(fill="x")
 
         self.disease_lbl = tk.Label(
             info, text="Aim leaf inside box -> Tap CAPTURE -> Tap DIAGNOSE",
-            font=self.f(12, True), fg=WHITE, bg=PANEL, anchor="w",
+            font=self.f(13, True), fg=WHITE, bg=PANEL, anchor="w",
             justify="left", wraplength=wrap
         )
-        self.disease_lbl.pack(fill="x")
+        self.disease_lbl.pack(fill="x", pady=(px(2), 0))
 
         # Confidence Bar
-        self.BAR_W, self.BAR_H = wrap, px(18)
+        self.BAR_W, self.BAR_H = wrap, px(22)
         self.bar = tk.Canvas(info, width=self.BAR_W, height=self.BAR_H, bg=CARD, highlightthickness=0)
-        self.bar.pack(anchor="w", pady=(px(5), 0))
+        self.bar.pack(anchor="w", pady=(px(6), 0))
 
-        tk.Frame(right, bg=BORDER, height=max(1, px(1))).pack(fill="x", padx=rp, pady=(px(7), px(4)))
+        tk.Frame(right, bg=BORDER, height=max(1, px(1))).pack(fill="x", padx=rp, pady=(px(8), px(5)))
 
         self.rec_hdr_lbl = tk.Label(
-            right, text="RECOMMENDED FARMER ACTIONS", font=self.f(10, True),
-            fg=WHITE, bg=PANEL, anchor="w"
+            right, text="RECOMMENDED FARMER ACTIONS", font=self.f(11, True),
+            fg=GREEN_ACCENT, bg=PANEL, anchor="w"
         )
-        self.rec_hdr_lbl.pack(fill="x", padx=rp, pady=(0, px(4)))
+        self.rec_hdr_lbl.pack(fill="x", padx=rp, pady=(0, px(5)))
 
         # Bottom Hardware / Latency Strip
         self.stats_lbl = tk.Label(
-            right, text=f"AGRILENS v{APP_VERSION}", font=self.f(8), fg=MUTED, bg=PANEL,
+            right, text=f"AGRILENS v{APP_VERSION}", font=self.f(8, True), fg=MUTED, bg=PANEL,
             anchor="w", justify="left", wraplength=wrap
         )
         self.stats_lbl.pack(side="bottom", fill="x", padx=rp, pady=(0, px(4)))
@@ -2580,7 +2611,7 @@ class AgriLensApp:
             right, text=DISCLAIMER, font=self.f(8), fg=MUTED, bg=PANEL,
             anchor="w", justify="left", wraplength=wrap
         )
-        self.disclaimer_lbl.pack(side="bottom", fill="x", padx=rp)
+        self.disclaimer_lbl.pack(side="bottom", fill="x", padx=rp, pady=(0, px(2)))
 
         # Numbered recommendation rows
         steps_box = tk.Frame(right, bg=PANEL)
@@ -2588,15 +2619,15 @@ class AgriLensApp:
 
         self.step_rows = []
         for i in range(4):
-            row = tk.Frame(steps_box, bg=PANEL)
+            row = tk.Frame(steps_box, bg=CARD, padx=px(6), pady=px(4), highlightbackground=BORDER, highlightthickness=1)
             num = tk.Label(
-                row, text=str(i + 1), font=self.f(9, True),
-                bg=GREEN_PRIMARY, fg=WHITE, width=2
+                row, text=str(i + 1), font=self.f(10, True),
+                bg=GREEN_PRIMARY, fg=WHITE, width=2, pady=px(1)
             )
-            num.pack(side="left", anchor="n", padx=(0, px(7)), pady=(px(1), 0))
+            num.pack(side="left", anchor="n", padx=(0, px(8)), pady=(px(1), 0))
             txt = tk.Label(
-                row, text="", font=self.f(9), fg=WHITE, bg=PANEL,
-                anchor="w", justify="left", wraplength=wrap - px(32)
+                row, text="", font=self.f(10), fg=WHITE, bg=CARD,
+                anchor="w", justify="left", wraplength=wrap - px(46)
             )
             txt.pack(side="left", fill="x", expand=True)
             self.step_rows.append((row, num, txt))
@@ -2607,11 +2638,11 @@ class AgriLensApp:
     def _build_plant_picker(self):
         px = self.px
         self.picker = tk.Frame(self.root, bg=BG)
-        self.picker_title_lbl = tk.Label(self.picker, text="SELECT CROP TO DIAGNOSE", font=self.f(20, True), fg=WHITE, bg=BG)
-        self.picker_title_lbl.pack(pady=(px(24), px(4)))
+        self.picker_title_lbl = tk.Label(self.picker, text="SELECT CROP TO DIAGNOSE", font=self.f(22, True), fg=WHITE, bg=BG)
+        self.picker_title_lbl.pack(pady=(px(26), px(4)))
         self.picker_sub_lbl = tk.Label(
             self.picker, text="Auto-detection mode automatically identifies all supported plant species",
-            font=self.f(10), fg=MUTED, bg=BG
+            font=self.f(11), fg=MUTED, bg=BG
         )
         self.picker_sub_lbl.pack()
 
@@ -2619,19 +2650,19 @@ class AgriLensApp:
         self.picker_grid.pack(expand=True)
 
         self.picker_back_btn = self._button(
-            self.picker, "REVERT TO SCANNER", GREY_BTN, self.close_overlays,
-            width=px(210), height=px(52), size=11, radius=px(16), fg=WHITE, parent_bg=BG
+            self.picker, "← REVERT TO SCANNER", GREY_BTN, self.close_overlays,
+            width=px(260), height=px(56), size=12, radius=px(18), fg=WHITE, border=BORDER, parent_bg=BG
         )
-        self.picker_back_btn.pack(pady=(0, px(22)))
+        self.picker_back_btn.pack(pady=(0, px(24)))
 
     def _fill_plant_picker(self):
         for w in self.picker_grid.winfo_children():
             w.destroy()
         is_hi = (getattr(self, "lang", "EN") == "HI")
         if is_hi:
-            options = [("सभी फसलें (ऑटो - बीटा)", None)] + [(f"{translate_crop_hi(p)} ({p.upper()})", p) for p in self.plants]
+            options = [("🌱 सभी फसलें (ऑटो - बीटा)", None)] + [(f"🌿 {translate_crop_hi(p)} ({p.upper()})", p) for p in self.plants]
         else:
-            options = [("ALL PLANTS (AUTO - BETA)", None)] + [(p.upper(), p) for p in self.plants]
+            options = [("🌱 ALL PLANTS (AUTO - BETA)", None)] + [(f"🌿 {p.upper()}", p) for p in self.plants]
         cols = 3 if len(options) > 4 else 2
         for i, (text, value) in enumerate(options):
             color = GREEN_PRIMARY if value == self.selected_plant else CARD
@@ -2639,10 +2670,10 @@ class AgriLensApp:
             b = self._button(
                 self.picker_grid, text, color,
                 lambda v=value: self.select_plant(v),
-                width=self.px(220), height=self.px(58), size=11, fg=WHITE,
-                border=border, radius=self.px(16), parent_bg=BG
+                width=self.px(250), height=self.px(66), size=12, fg=WHITE,
+                border=border, radius=self.px(18), parent_bg=BG
             )
-            b.grid(row=i // cols, column=i % cols, padx=self.px(10), pady=self.px(10))
+            b.grid(row=i // cols, column=i % cols, padx=self.px(12), pady=self.px(12))
 
     def open_plant_picker(self):
         self._hide_mode_dropdown()
@@ -2654,10 +2685,16 @@ class AgriLensApp:
         self.selected_plant = plant
         is_hi = (getattr(self, "lang", "EN") == "HI")
         if plant is None:
-            self.plant_btn.config(text="फसल चुनें (ऑटो)" if is_hi else "SELECT CROP (AUTO)")
+            self.plant_btn.config(
+                text=("🌱 फसल: ऑटो (सभी)" if is_hi else "🌱 CROP: AUTO (ALL)"),
+                bg=CARD, border=GREEN_ACCENT, fg=WHITE
+            )
         else:
             p_txt = translate_crop_hi(plant) if is_hi else plant.upper()
-            self.plant_btn.config(text=f"फसल: {p_txt}" if is_hi else f"CROP: {p_txt}")
+            self.plant_btn.config(
+                text=(f"🌱 फसल: {p_txt}" if is_hi else f"🌱 CROP: {p_txt}"),
+                bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE
+            )
 
         if self.paused and self.last_probs:
             self._render_diagnosis(self.last_probs, self.last_raw_out)
@@ -4122,7 +4159,7 @@ class AgriLensApp:
                     text=("क्रॉप क्षेत्र बदला गया — अभी जांचें दबाएं" if is_hi else "CROP SELECTION ADJUSTED — TAP DIAGNOSE NOW"),
                     bg=GREEN_PRIMARY, fg=WHITE
                 )
-                self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+                self.diagnose_btn.config(text="🔍  अभी जांचें" if is_hi else "🔍  DIAGNOSE NOW", bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE)
 
     def _on_canvas_double_click(self, event):
         if self.paused and self.captured_frame is not None:
@@ -4181,7 +4218,7 @@ class AgriLensApp:
                     "Aim leaf -> Tap CAPTURE -> Drag Crop Handles -> Tap DIAGNOSE"
                 )
             )
-            self.capture_btn.config(text="फोटो लें" if is_hi else "CAPTURE LEAF", bg=GREEN_PRIMARY, fg=WHITE)
+            self.capture_btn.config(text="📸  फोटो लें" if is_hi else "📸  CAPTURE LEAF", bg=GREEN_PRIMARY, fg=WHITE)
             self.canvas.itemconfig(self.live_badge, text="लाइव कैमरा" if is_hi else "LIVE WEBCAM", fill=GREEN_ACCENT)
             self.canvas.itemconfig(self.msg_txt, text="")
             self.quality_lbl.config(
@@ -4200,7 +4237,7 @@ class AgriLensApp:
                     "Tap PICK FROM FILE -> Drag Crop Handles -> Tap DIAGNOSE"
                 )
             )
-            self.capture_btn.config(text="फाइल से चुनें" if is_hi else "PICK FROM FILE", bg=GREEN_PRIMARY, fg=WHITE)
+            self.capture_btn.config(text="📂  फाइल से चुनें" if is_hi else "📂  PICK FROM FILE", bg=GREEN_PRIMARY, fg=WHITE)
             if is_hi:
                 badge_txt = "फाइल मोड (सैंपल)" if has_cam else "फाइल मोड (कैमरा नहीं)"
             else:
@@ -4246,7 +4283,7 @@ class AgriLensApp:
                 fg=MUTED
             )
 
-        self.diagnose_btn.config(text="पत्ती जांचें" if is_hi else "DIAGNOSE LEAF", bg=CARD, fg=WHITE)
+        self.diagnose_btn.config(text="🔍  पत्ती जांचें" if is_hi else "🔍  DIAGNOSE LEAF", bg=CARD, border=GREEN_ACCENT, fg=WHITE)
         self._draw_bar(0, GREY_BTN, "पत्ती की प्रतीक्षा है..." if is_hi else "Waiting for leaf...")
         for row, num, txt in self.step_rows:
             num.config(bg=GREEN_PRIMARY, fg=WHITE)
@@ -4340,8 +4377,8 @@ class AgriLensApp:
             )
         )
 
-        self.capture_btn.config(text="फाइल से चुनें" if is_hi else "PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
-        self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+        self.capture_btn.config(text="📂  फाइल से चुनें" if is_hi else "📂  PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
+        self.diagnose_btn.config(text="🔍  अभी जांचें" if is_hi else "🔍  DIAGNOSE NOW", bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE)
         return True
 
     def handle_capture_or_retake(self):
@@ -4388,8 +4425,8 @@ class AgriLensApp:
                 )
 
                 # Swap Capture to RETAKE and Diagnose to DIAGNOSE NOW
-                self.capture_btn.config(text="पुनः फोटो लें" if is_hi else "RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
-                self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+                self.capture_btn.config(text="↺  पुनः फोटो लें" if is_hi else "↺  RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+                self.diagnose_btn.config(text="🔍  अभी जांचें" if is_hi else "🔍  DIAGNOSE NOW", bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE)
             else:
                 self.quality_lbl.config(
                     text=("कैमरा तैयार नहीं है। फाइल मोड चुनें या USB वेबकैम जांचें।" if is_hi else "Camera not ready. Switch to File Mode or check USB webcam."),
@@ -4428,8 +4465,8 @@ class AgriLensApp:
                 text=("फोटो ली गई — क्रॉप करने हेतु हैंडल खींचें" if is_hi else "CAPTURED — DRAG HANDLES TO CROP"),
                 fill=GREEN_ACCENT
             )
-            self.capture_btn.config(text="पुनः फोटो लें" if is_hi else "RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
-            self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+            self.capture_btn.config(text="↺  पुनः फोटो लें" if is_hi else "↺  RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+            self.diagnose_btn.config(text="🔍  अभी जांचें" if is_hi else "🔍  DIAGNOSE NOW", bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE)
 
         target_img = self._get_cropped_leaf_image()
         if target_img is None:
@@ -4591,13 +4628,13 @@ class AgriLensApp:
         else:
             self._draw_bar(conf, color)
 
-        # Update Steps
+        # UpdateSteps
         for row, _, _ in self.step_rows:
             row.pack_forget()
         for (row, num, txt), step in zip(self.step_rows, steps):
             num.config(bg=num_color)
             txt.config(text=step)
-            row.pack(fill="x", pady=(0, self.px(5)))
+            row.pack(fill="x", pady=(0, self.px(4)))
 
     def _draw_bar(self, frac, color, text=None):
         self.bar.delete("all")
@@ -4608,7 +4645,7 @@ class AgriLensApp:
         lbl_text = default_lbl if text is None else text
         self.bar.create_text(
             self.BAR_W // 2, self.BAR_H // 2, fill=TEXT,
-            font=self.f(9, True), text=lbl_text
+            font=self.f(10, True), text=lbl_text
         )
 
     def _update_stats_bar(self):

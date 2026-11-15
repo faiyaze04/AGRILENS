@@ -8,9 +8,9 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.9.2` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 14:36 IST` (November 15, 2026)** |
-| **Build Identifier** | `BUILD-20261115-1436-V492` |
+| **Current Version** | **`v4.9.3` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 17:12 IST` (November 15, 2026)** |
+| **Build Identifier** | `BUILD-20261115-1712-V493` |
 | **Vision Backbone** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Universal Inverted Bottleneck (UIB) in ONNX format |
 | **Model Weights** | Single-file `agrilens.onnx` (`10,068,009 bytes` / `~10.07 MB`, all weights embedded) |
 | **Supported Classes** | **24 Classes** across **4 Crops** (`Apple`, `Mango`, `Potato`, `Tomato`) trained on 23,893 images |
@@ -24,7 +24,8 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Version | Release Date | Primary Engine | Classes | Model Size | Key Highlights |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`v4.9.2`** | **2026-11-15 14:36 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **Bilingual Main Screen Toggle (`🌐 हिंदी / EN`) — Full Hindi & English Support for Instructions, Buttons, Crop/Disease Names, Quality AI, and Farmer Recommendations** |
+| **`v4.9.3`** | **2026-11-15 17:12 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **World-Class Touch UI/UX Redesign: Unified Top Control Bar (`🌱 CROP`, `📷 MODE`, `🌐 हिंदी / EN`, `⚙ ADMIN`), Larger `52px` Action Buttons (`📸 CAPTURE LEAF`, `🔍 DIAGNOSE LEAF`), Card-Framed Farmer Recommendations & Enhanced Typography** |
+| `v4.9.2` | 2026-11-15 14:36 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Bilingual Main Screen Toggle (`🌐 हिंदी / EN`) — Full Hindi & English Support for Instructions, Buttons, Crop/Disease Names, Quality AI, and Farmer Recommendations |
 | `v4.9.1` | 2026-11-15 14:27 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Remote Over-The-Air (OTA) Trained Model Updates (`agrilens.onnx` via `MODEL_SHA256` Zero-Overhead Fingerprint Check) |
 | `v4.9.0` | 2026-11-15 14:08 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Full-Screen Logo Screensaver Overlay (Deactivated on Touch/Click), Clean `AGRILENS` Top Title, and Version Display in Bottom Status Bar (`AGRILENS v4.9.0`) |
 | `v4.8.6` | 2026-11-15 14:01 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Instant GUI Window Launch (`<0.2s`), Windows Space-Safe Restart (`subprocess.Popen`), and Boot OTA Guard (`remote_tuple > local_tuple` on `silent_boot`) |
@@ -47,6 +48,22 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 ---
 
 ## 📜 Detailed Changelog by Build
+
+### [v4.9.3] — 2026-11-15 17:12 IST
+#### ✨ Added & Enhanced
+1. **Unified Top Navigation & Selection Bar (`_build_top_bar`)**:
+   - Increased the top navigation bar height (`self.TOP_H = self.px(60)`) with a crisp dark-foliage border.
+   - Grouped all 4 top selection buttons together in a single, evenly-spaced horizontal control cluster (`self.top_btn_bar`) between the `AGRILENS` title on the left and the Gundecha Education Academy logo on the right:
+     1. **`🌱 CROP: AUTO (ALL)`** / **`🌱 फसल: ऑटो (सभी)`** (`192 × 44 px`)
+     2. **`📷 MODE: LIVE ▾`** / **`📷 मोड: लाइव ▾`** (`176 × 44 px`)
+     3. **`🌐 हिंदी / EN`** / **`🌐 भाषा: हिंदी`** (`142 × 44 px`)
+     4. **`⚙ ADMIN`** (`114 × 44 px`)
+   - Updated `toggle_mode_dropdown()` to dynamically align the mode dropdown menu directly beneath the repositioned `mode_btn`.
+2. **Larger Action Buttons & Enhanced Readability (`_build_body`, `_build_plant_picker`)**:
+   - Increased bottom action buttons (`📸  CAPTURE LEAF` / `🔍  DIAGNOSE LEAF`) to `52px` height and `size=13` bold font, and crop picker tiles to `250 × 66 px` (`size=12`).
+   - Upgraded typography across the Status Banner (`13pt bold`), Crop Mode (`11pt bold`), Disease Name (`13pt bold`), Confidence Bar (`22px` height, `10pt bold`), Quality AI bar (`10pt bold`), and 4-step farmer recommendation cards (`10pt` inside bordered `CARD` containers).
+
+---
 
 ### [v4.9.2] — 2026-11-15 14:36 IST
 #### ✨ Added & Enhanced

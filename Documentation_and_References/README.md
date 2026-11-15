@@ -1,7 +1,7 @@
 # AGRILENS — AI Plant Health & Disease Diagnosis Kiosk
 
-[![Version](https://img.shields.io/badge/version-v4.9.2-16a34a.svg)](REVISION.md)
-[![Build](https://img.shields.io/badge/build-2026--11--15%2014%3A36%20IST-0ea5e9.svg)](REVISION.md)
+[![Version](https://img.shields.io/badge/version-v4.9.3-16a34a.svg)](REVISION.md)
+[![Build](https://img.shields.io/badge/build-2026--11--15%2017%3A12%20IST-0ea5e9.svg)](REVISION.md)
 [![Model](https://img.shields.io/badge/backbone-MobileNetV4--Conv--Small%20ONNX-22c55e.svg)](../MobileV4/agrilens.onnx)
 [![Classes](https://img.shields.io/badge/classes-24%20Classes%20(4%20Crops)-f59e0b.svg)](../MobileV4/labels.txt)
 [![Partner](https://img.shields.io/badge/partner-Gundecha%20Education%20Academy-dc2626.svg)](https://www.gundechaedu.org/)
@@ -14,8 +14,8 @@
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.9.2` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 14:36 IST` (November 15, 2026)** |
+| **Current Version** | **`v4.9.3` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 17:12 IST` (November 15, 2026)** |
 | **Vision Model** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Single-File ONNX (~10.07 MB) |
 | **Training Dataset** | 23,893 images across 24 classes (15 Epochs, 97.28% – 98.31% Val Accuracy) |
 | **Inference Latency** | ~24–40 ms on CPU (3-view training-aligned ensemble on Raspberry Pi 5 / PC) |
@@ -27,7 +27,7 @@
 
 ---
 
-## 🌟 Key Features in v4.9.2
+## 🌟 Key Features in v4.9.3
 
 - **24-Class MobileNetV4 Edge Vision:** Powered by a single-file MobileNetV4-Conv-Small ONNX model (`agrilens.onnx`, ~10.07 MB with all weights embedded) trained on 23,893 images across 24 classes for Apple, Mango, Potato, and Tomato.
 - **Bilingual Main Screen (Hindi / English `🌐 हिंदी / EN`):** Instant 1-tap language toggle on the main screen that translates all farmer-facing instructions, buttons (`फोटो लें`, `पुनः फोटो लें`, `फाइल से चुनें`, `पत्ती जांचें`, `अभी जांचें`), crop & disease names, Leaf Quality AI status messages, confidence bar labels, and 4-step farmer recommendations into Hindi (persisted in `kiosk_config.json`), while keeping the Admin Console and Camera Control Panel in English.
