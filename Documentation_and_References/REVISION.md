@@ -8,9 +8,9 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.9.1` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 14:27 IST` (November 15, 2026)** |
-| **Build Identifier** | `BUILD-20261115-1427-V491` |
+| **Current Version** | **`v4.9.2` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 14:36 IST` (November 15, 2026)** |
+| **Build Identifier** | `BUILD-20261115-1436-V492` |
 | **Vision Backbone** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Universal Inverted Bottleneck (UIB) in ONNX format |
 | **Model Weights** | Single-file `agrilens.onnx` (`10,068,009 bytes` / `~10.07 MB`, all weights embedded) |
 | **Supported Classes** | **24 Classes** across **4 Crops** (`Apple`, `Mango`, `Potato`, `Tomato`) trained on 23,893 images |
@@ -24,7 +24,8 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Version | Release Date | Primary Engine | Classes | Model Size | Key Highlights |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`v4.9.1`** | **2026-11-15 14:27 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **Remote Over-The-Air (OTA) Trained Model Updates (`agrilens.onnx` via `MODEL_SHA256` Zero-Overhead Fingerprint Check)** |
+| **`v4.9.2`** | **2026-11-15 14:36 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **Bilingual Main Screen Toggle (`🌐 हिंदी / EN`) — Full Hindi & English Support for Instructions, Buttons, Crop/Disease Names, Quality AI, and Farmer Recommendations** |
+| `v4.9.1` | 2026-11-15 14:27 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Remote Over-The-Air (OTA) Trained Model Updates (`agrilens.onnx` via `MODEL_SHA256` Zero-Overhead Fingerprint Check) |
 | `v4.9.0` | 2026-11-15 14:08 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Full-Screen Logo Screensaver Overlay (Deactivated on Touch/Click), Clean `AGRILENS` Top Title, and Version Display in Bottom Status Bar (`AGRILENS v4.9.0`) |
 | `v4.8.6` | 2026-11-15 14:01 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Instant GUI Window Launch (`<0.2s`), Windows Space-Safe Restart (`subprocess.Popen`), and Boot OTA Guard (`remote_tuple > local_tuple` on `silent_boot`) |
 | `v4.8.5` | 2026-11-15 13:45 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Fixed GitHub Email Privacy Protection (`GH007` Noreply Address) & Sanitized `push_ota_update.bat` Batch Script — Published Live to GitHub (`origin/main`) |
@@ -46,6 +47,15 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 ---
 
 ## 📜 Detailed Changelog by Build
+
+### [v4.9.2] — 2026-11-15 14:36 IST
+#### ✨ Added & Enhanced
+1. **Bilingual Main Screen Toggle (`🌐 हिंदी / EN`)**:
+   - Added a 1-tap **`🌐 हिंदी / EN`** (when in English) / **`🌐 भाषा: हिंदी`** (when in Hindi) button in the top bar of the Main Screen (`_build_top_bar`, `toggle_language`, `_refresh_language_ui`), keeping the Admin Console and Camera Control Panel in English.
+   - Translates all farmer-facing instructions, buttons (`फोटो लें`, `पुनः फोटो लें`, `फाइल से चुनें`, `पत्ती जांचें`, `अभी जांचें`), mode selector dropdown (`मोड: लाइव कैमरा ▾` / `मोड: फाइल मोड ▾`), crop picker (`फसल चुनें (ऑटो)` / `सेब (APPLE)`, `आम (MANGO)`, `आलू (POTATO)`, `टमाटर (TOMATO)`), Leaf Quality AI status messages (`LeafQualityAI.assess(..., lang=self.lang)`), confidence bar labels, 24 crop/disease names (`translate_crop_hi`, `translate_cond_hi`), 4-step farmer recommendations (`RECOMMENDATIONS_HI`, `UNSURE_STEPS_HI`, `OOD_STEPS_HI`), and disclaimer (`DISCLAIMER_HI`).
+   - Dynamically re-renders active captured frames and diagnosis outcomes immediately when toggled between Hindi and English, and persists `"language"` in `kiosk_config.json`.
+
+---
 
 ### [v4.9.1] — 2026-11-15 14:27 IST
 #### ✨ Added & Enhanced

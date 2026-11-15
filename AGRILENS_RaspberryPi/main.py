@@ -150,8 +150,8 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "4.9.1"
-BUILD_TIMESTAMP = "2026-11-15 14:27 IST"
+APP_VERSION = "4.9.2"
+BUILD_TIMESTAMP = "2026-11-15 14:36 IST"
 MODEL_SHA256 = "0b5bb7fb3916a7c1138f90cfc9abfdc130f06495a34282d474e52718b072ff80"
 OTA_REPO_RAW_BASE = "https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi"
 
@@ -277,6 +277,7 @@ DEFAULT_CONFIG = {
     "cam_flip_v": False,
     "cam_auto_exp": True,
     "cam_auto_wb": True,
+    "language": "EN",
 }
 
 def _clamp_num(val, default, lo, hi, as_int=False):
@@ -322,6 +323,7 @@ def load_kiosk_config():
     for bkey, bdef in (("cam_flip_h", False), ("cam_flip_v", False), ("cam_auto_exp", True), ("cam_auto_wb", True)):
         val = cfg.get(bkey, bdef)
         cfg[bkey] = val if isinstance(val, bool) else bdef
+    cfg["language"] = "HI" if str(cfg.get("language", "EN")).upper() == "HI" else "EN"
     return cfg
 
 def save_kiosk_config(cfg):
@@ -431,12 +433,64 @@ PREVIEW_FPS = 25
 RESAMPLE = RESAMPLE_BILINEAR
 
 # =============================================================================
-# 3. FARMER RECOMMENDATIONS DATABASE
+# 3. FARMER RECOMMENDATIONS DATABASE (Bilingual: English & Hindi)
 # =============================================================================
 DISCLAIMER = (
     "Agricultural advice only. Consult your local extension officer "
     "before applying chemical treatments."
 )
+DISCLAIMER_HI = (
+    "यह केवल कृषि परामर्श है। रासायनिक उपचार करने से पहले अपने स्थानीय "
+    "कृषि विस्तार अधिकारी से सलाह लें।"
+)
+
+CROP_HI_MAP = {
+    "apple": "सेब (Apple)",
+    "mango": "आम (Mango)",
+    "potato": "आलू (Potato)",
+    "tomato": "टमाटर (Tomato)",
+}
+
+CONDITION_HI_MAP = {
+    "healthy": "स्वस्थ पत्ती (Healthy)",
+    "rust": "रस्ट / किट्ट रोग (Rust)",
+    "scab": "स्कैब / पपड़ी रोग (Scab)",
+    "anthracnose": "एन्थ्रेक्नोज़ (Anthracnose)",
+    "bacterial canker": "जीवाणु कैंकर (Bacterial Canker)",
+    "cutting weevil": "कटिंग वीविल कीट (Cutting Weevil)",
+    "die back": "डाई-बैक रोग (Die Back)",
+    "gall midge": "गॉल मिज कीट (Gall Midge)",
+    "powdery mildew": "चूर्णिल आसिता (Powdery Mildew)",
+    "sooty mould": "सूटी मोल्ड / काली फफूंद (Sooty Mould)",
+    "early blight": "अगेती झुलसा (Early Blight)",
+    "late blight": "पछेती झुलसा (Late Blight)",
+    "bacterial spot": "जीवाणु धब्बा रोग (Bacterial Spot)",
+    "leaf mold": "पत्ती की फफूंद (Leaf Mold)",
+    "septoria leaf spot": "सेप्टोरिया पत्ती धब्बा (Septoria Leaf Spot)",
+    "spider mites two spotted spider mite": "लाल मकड़ी कीट (Spider Mites)",
+    "target spot": "टारगेट स्पॉट (Target Spot)",
+    "tomato yellowleaf curl virus": "पीला पत्ता मरोड़ वायरस (Yellow Leaf Curl Virus)",
+    "tomato mosaic virus": "मोज़ेक वायरस (Mosaic Virus)",
+}
+
+
+def translate_crop_hi(crop_name):
+    if not crop_name:
+        return ""
+    return CROP_HI_MAP.get(str(crop_name).strip().lower(), str(crop_name))
+
+
+def translate_cond_hi(cond_name):
+    if not cond_name:
+        return ""
+    low = str(cond_name).strip().lower()
+    if low in CONDITION_HI_MAP:
+        return CONDITION_HI_MAP[low]
+    for k, v in CONDITION_HI_MAP.items():
+        if k in low:
+            return v
+    return str(cond_name)
+
 
 RECOMMENDATIONS = [
     (("healthy",), [
@@ -544,11 +598,124 @@ RECOMMENDATIONS = [
     ]),
 ]
 
+RECOMMENDATIONS_HI = [
+    (("healthy",), [
+        "फसल की पत्ती पूरी तरह स्वस्थ है। किसी रासायनिक छिड़काव की आवश्यकता नहीं है।",
+        "सुबह जल्दी पौधे की जड़ में पानी दें; पत्तियों को सूखा रखें।",
+        "धब्बों या कीटों के शुरुआती लक्षणों के लिए हर सप्ताह निचली पत्तियों की जाँच करें।",
+        "खेत की मेड़ों को साफ़ रखें और गिरी हुई सूखी पत्तियों को हटा दें।",
+    ]),
+    (("scab",), [
+        "फफूंद के बीजाणुओं को रोकने के लिए संक्रमित पत्तियों को हटाकर नष्ट कर दें।",
+        "धूप और हवा के प्रवाह के लिए घनी शाखाओं की छंटाई करें।",
+        "अनुशंसित कवकनाशी (जैसे मैंकोज़ेब या कैप्टान) का छिड़काव करें।",
+        "रात के समय पत्तियों को गीला रखने वाली ऊपरी सिंचाई से बचें।",
+    ]),
+    (("black rot",), [
+        "संक्रमित हिस्से से 15 सेमी नीचे से सूखी और रोगग्रस्त टहनियों को काटें।",
+        "सभी सड़े हुए फलों और गिरी हुई संक्रमित पत्तियों को इकट्ठा करके नष्ट करें।",
+        "कली निकलने से लेकर फूल आने तक अनुमोदित सुरक्षात्मक कवकनाशी का छिड़काव करें।",
+        "प्रत्येक पेड़ की छंटाई के बाद कैंची को अल्कोहल से कीटाणुरहित करें।",
+    ]),
+    (("rust", "cedar apple rust"), [
+        "500 मीटर के दायरे में जंगली जुनिपर/देवदार की झाड़ियों की जाँच करें और हटाएं।",
+        "कली बनने और पंखुड़ी गिरने की अवस्था में अनुशंसित कवकनाशी का छिड़काव करें।",
+        "सर्दियों में रोग को फैलने से रोकने के लिए गिरी हुई पत्तियों को नष्ट करें।",
+    ]),
+    (("bacterial spot",), [
+        "धब्बेदार पत्तियों को तुरंत तोड़कर नष्ट करें; गीली फसल में काम न करें।",
+        "स्थानीय कृषि दिशानिर्देशों के अनुसार कॉपर-आधारित जीवाणुनाशक का छिड़काव करें।",
+        "पानी के छींटों से संक्रमण रोकने के लिए ड्रिप सिंचाई का उपयोग करें।",
+        "2-3 वर्षों तक गैर-सोलेनेसी फसलों के साथ फसल चक्र अपनाएं।",
+    ]),
+    (("early blight",), [
+        "निचली संक्रमित पत्तियों को काटकर जला दें या मिट्टी में दबा दें (कम्पोस्ट न बनाएं)।",
+        "मिट्टी से फफूंद के छींटे रोकने के लिए साफ़ जैविक पलवार (मल्च) बिछाएं।",
+        "अनुशंसित कवकनाशी (जैसे मैंकोज़ेब या क्लोरोथालोनिल) का छिड़काव करें।",
+        "अगले सीजन में फसल चक्र अपनाएं; आलू के बाद टमाटर न लगाएं।",
+    ]),
+    (("late blight",), [
+        "अति आवश्यक: यह संक्रामक झुलसा रोग ठंडी और नमी वाली हवा में तेज़ी से फैलता है।",
+        "गंभीर रूप से संक्रमित पौधों को तुरंत उखाड़कर नष्ट कर दें।",
+        "आस-पास के स्वस्थ पौधों को बचाने के लिए तुरंत सिस्टेमिक कवकनाशी का छिड़काव करें।",
+        "फव्वारा (स्प्रिंकलर) सिंचाई तुरंत बंद कर दें।",
+    ]),
+    (("leaf mold",), [
+        "हवा के प्रवाह के लिए पौधों के बीच की दूरी बढ़ाएं और निचली शाखाओं की छंटाई करें।",
+        "नमी कम करने के लिए खेत या पॉलीहाउस में हवा का उचित वेंटिलेशन रखें।",
+        "यदि संक्रमण बढ़ता है, तो अनुमोदित कॉपर या सल्फर कवकनाशी का छिड़काव करें।",
+    ]),
+    (("septoria",), [
+        "गोल धब्बे दिखते ही निचली संक्रमित पत्तियों को तोड़कर हटा दें।",
+        "जमीन पर पलवार (मल्च) रखें और पत्तियों के ऊपर से पानी न डालें।",
+        "7 से 10 दिनों के अंतराल पर सुरक्षात्मक कवकनाशी का छिड़काव करें।",
+    ]),
+    (("spider mite",), [
+        "पत्तियों के निचले हिस्से पर साफ़ पानी की तेज़ धार से छिड़काव करें।",
+        "हर 5-7 दिनों में नीम के तेल (Neem Oil) या कीटनाशक साबुन का छिड़काव करें।",
+        "नियमित सिंचाई बनाए रखें; लाल मकड़ी कीट सूखे और गर्म मौसम में तेजी से बढ़ते हैं।",
+    ]),
+    (("target spot",), [
+        "फफूंद के दबाव को कम करने के लिए निचली संक्रमित पत्तियों को हटा दें।",
+        "हवा के बेहतर प्रवाह के लिए पौधों को सहारा (स्टेकिंग) दें और दूरी बनाए रखें।",
+        "अनुशंसित कवकनाशी (जैसे क्लोरोथालोनिल या मैंकोज़ेब) का छिड़काव करें।",
+        "निचली पत्तियों पर मिट्टी के छींटे रोकने के लिए ड्रिप सिंचाई और मल्च का प्रयोग करें।",
+    ]),
+    (("yellow leaf curl",), [
+        "यह सफेद मक्खी (Whitefly) से फैलने वाला वायरस रोग है; संक्रमित पौधा ठीक नहीं हो सकता।",
+        "पड़ोसी पौधों को बचाने के लिए रोगग्रस्त पौधों को तुरंत उखाड़कर नष्ट करें।",
+        "सफेद मक्खी को नियंत्रित करने के लिए पीले चिपचिपे ट्रैप (Yellow Sticky Traps) लगाएं।",
+        "अगली फसल के लिए प्रमाणित रोग-प्रतिरोधी (TYLCV-resistant) किस्म के पौधे चुनें।",
+    ]),
+    (("mosaic",), [
+        "यह एक विषाणु (वायरस) जनित रोग है। संक्रमित पौधों को उखाड़कर सुरक्षित रूप से नष्ट करें।",
+        "पौधों को छूने के बाद हाथों और औजारों को साबुन और पानी से अच्छी तरह धोएं।",
+        "टमाटर की फसल के पास धूम्रपान या तंबाकू के उपयोग से सख़्त परहेज करें।",
+    ]),
+    (("anthracnose",), [
+        "सूखी टहनियों, रोगग्रस्त पत्तियों और सूखे फूलों के गुच्छों की छंटाई करें।",
+        "फूल आने से पहले और तुड़ाई के बाद कॉपर ऑक्सीक्लोराइड (0.3%) का छिड़काव करें।",
+        "पेड़ के भीतरी हिस्सों में धूप पहुँचाने के लिए घनी शाखाओं की छंटाई करें।",
+    ]),
+    (("powdery mildew",), [
+        "मंजरी निकलते समय घुलनशील सल्फर (0.2%) या हेक्साकोनाज़ोल का छिड़काव करें।",
+        "नमी कम करने के लिए घनी टहनियों की छंटाई करें।",
+        "नीचे गिरे हुए संक्रमित फूलों के गुच्छों को इकट्ठा करके जला दें।",
+    ]),
+    (("die back", "dieback"), [
+        "सूखी लकड़ी के दिखने वाले हिस्से से 8-10 सेमी नीचे से संक्रमित टहनियों को काटें।",
+        "कटे हुए हिस्सों पर तुरंत ताज़ा बोर्डो पेस्ट (Bordeaux paste) लगाएं।",
+        "अनुशंसित NPK और जिंक के साथ पेड़ का संतुलित पोषण बनाए रखें।",
+    ]),
+    (("bacterial canker",), [
+        "कैंकर वाली शाखाओं की छंटाई करें और घावों पर कॉपर स्प्रे का उपचार करें।",
+        "कॉपर ऑक्सीक्लोराइड के साथ स्ट्रेप्टोसाइक्लिन (100 ppm) का छिड़काव करें।",
+        "तेज़ हवा से पत्तियों को होने वाली रगड़ से बचाने के लिए वायुरोधक पेड़ लगाएं।",
+    ]),
+    (("sooty mo",), [
+        "यह काली फफूंद फुदका (Hoppers) या मिलीबग द्वारा छोड़े गए मीठे चिपचिपे पदार्थ पर पनपती है।",
+        "काली परत को हटाने के लिए 2% स्टार्च घोल या नीम के तेल का छिड़काव करें।",
+        "रस चूसने वाले मुख्य कीटों (मैंगो हॉपर या स्केल कीट) का उपचार करें।",
+    ]),
+    (("cutting weevil", "gall midge"), [
+        "कटी हुई या गांठ (गॉल) वाली विकृत पत्तियों को इकट्ठा करके नष्ट कर दें।",
+        "नई पत्तियां निकलते समय अनुमोदित वानस्पतिक या नीम-आधारित कीटनाशक का छिड़काव करें।",
+        "मिट्टी में छिपे प्यूपा को नष्ट करने के लिए पेड़ के नीचे की मिट्टी की जुताई करें।",
+    ]),
+]
+
 UNSURE_STEPS = [
     "Check the Image Quality rating shown below the camera view.",
     "Hold one single leaf flat and fully centered inside the green box.",
     "Make sure lighting is even and there is no harsh direct glare or shadow.",
     "Auto mode is in Beta Production. Tap 'SELECT CROP' to focus on your crop.",
+]
+
+UNSURE_STEPS_HI = [
+    "कैमरा दृश्य के नीचे दिखाई गई 'पत्ती गुणवत्ता (Image Quality)' रेटिंग की जाँच करें।",
+    "एक पत्ती को सीधा रखें और हरे बॉक्स के बिल्कुल बीच में रखें।",
+    "सुनिश्चित करें कि रोशनी समान हो और पत्ती पर सीधी चमक या गहरी छाया न हो।",
+    "बेहतर सटीकता के लिए ऊपर 'फसल चुनें' बटन दबाकर अपनी फसल निर्धारित करें।",
 ]
 
 OOD_STEPS = [
@@ -558,6 +725,13 @@ OOD_STEPS = [
     "To support this plant species, add it to the dataset and retrain the model.",
 ]
 
+OOD_STEPS_HI = [
+    "यह पत्ती समर्थित फसलों (सेब, आम, आलू, टमाटर) के लक्षणों से मेल नहीं खाती है।",
+    "अन्य पौधे (जैसे सजावटी पौधे, खरपतवार आदि) वर्तमान सूची से बाहर हैं।",
+    "यदि आप समर्थित फसल की जाँच कर रहे हैं, तो ऊपर 'फसल चुनें' दबाकर फसल लॉक करें।",
+    "केवल सेब, आम, आलू या टमाटर की स्पष्ट पत्ती को कैमरे के सामने रखें।",
+]
+
 DEFAULT_STEPS = [
     "Possible crop condition observed on this specimen.",
     "Isolate this plant to prevent potential spread to adjacent rows.",
@@ -565,12 +739,20 @@ DEFAULT_STEPS = [
     "Avoid overhead watering to minimize standing leaf moisture.",
 ]
 
-def get_recommendation(crop, condition):
+DEFAULT_STEPS_HI = [
+    "इस पत्ती के नमूने में फसल रोग के संभावित लक्षण देखे गए हैं।",
+    "संक्रमण को आस-पास के पौधों में फैलने से रोकने के लिए इस पौधे को अलग रखें।",
+    "निरीक्षण के लिए इस पत्ती के नमूने को अपने स्थानीय कृषि कार्यालय में दिखाएं।",
+    "पत्तियों पर नमी कम करने के लिए ऊपर से पानी छिड़कने से बचें।",
+]
+
+def get_recommendation(crop, condition, lang="EN"):
     text = f"{crop} {condition}".lower()
-    for keys, steps in RECOMMENDATIONS:
+    db = RECOMMENDATIONS_HI if str(lang).upper() == "HI" else RECOMMENDATIONS
+    for keys, steps in db:
         if any(k in text for k in keys):
             return steps
-    return DEFAULT_STEPS
+    return DEFAULT_STEPS_HI if str(lang).upper() == "HI" else DEFAULT_STEPS
 
 
 def parse_label(label):
@@ -600,9 +782,15 @@ class LeafQualityAI:
     3. Foliage & Leaf Presence (Excess Green Index & central leaf coverage check)
     """
     @staticmethod
-    def assess(pil_image, min_sharpness=55.0):
+    def assess(pil_image, min_sharpness=55.0, lang="EN"):
+        is_hi = (str(lang).upper() == "HI")
         if np is None or pil_image is None:
-            return 80, "GOOD", "Image Quality: Acceptable", GREEN_ACCENT
+            return (
+                80,
+                "GOOD",
+                "पत्ती गुणवत्ता: उपयुक्त" if is_hi else "Image Quality: Acceptable",
+                GREEN_ACCENT,
+            )
 
         try:
             # Resize thumbnail for fast 1ms evaluation
@@ -616,13 +804,13 @@ class LeafQualityAI:
 
             if mean_lum < 36.0:
                 exposure_score = max(10, int(mean_lum * 1.5))
-                lighting_status = "Too Dark (Increase Phone Brightness)"
+                lighting_status = "कम रोशनी (रोशनी बढ़ाएं)" if is_hi else "Too Dark (Increase Phone Brightness)"
             elif mean_lum > 238.0:
                 exposure_score = max(15, int((255 - mean_lum) * 2.5))
-                lighting_status = "Screen Glare / Too Bright (Tilt Phone Slightly)"
+                lighting_status = "अधिक चमक / ग्लेयर (थोड़ा झुकाएं)" if is_hi else "Screen Glare / Too Bright (Tilt Phone Slightly)"
             else:
                 exposure_score = min(100, int(100 - abs(mean_lum - 135) * 0.38))
-                lighting_status = "Good Lighting"
+                lighting_status = "अच्छी रोशनी" if is_hi else "Good Lighting"
 
             # 2. Sharpness / Blur check (Spatial Laplacian variance)
             lap = (
@@ -636,16 +824,16 @@ class LeafQualityAI:
             base_s = max(10.0, float(min_sharpness))
             if sharp_var > (base_s * 4.0):
                 sharpness_score = 98
-                sharp_status = "Sharp & In Focus"
+                sharp_status = "साफ़ और स्पष्ट फ़ोकस" if is_hi else "Sharp & In Focus"
             elif sharp_var > (base_s * 2.0):
                 sharpness_score = int(70 + (sharp_var - base_s * 2.0) * (28.0 / (base_s * 2.0)))
-                sharp_status = "Good Focus"
+                sharp_status = "अच्छा फ़ोकस" if is_hi else "Good Focus"
             elif sharp_var >= base_s:
                 sharpness_score = int(45 + (sharp_var - base_s) * (25.0 / base_s))
-                sharp_status = "Slightly Blurry"
+                sharp_status = "हल्का धुंधला" if is_hi else "Slightly Blurry"
             else:
                 sharpness_score = max(10, int(sharp_var * (45.0 / base_s)))
-                sharp_status = "Blurry (Motion Blur)"
+                sharp_status = "धुंधला चित्र (Blurry)" if is_hi else "Blurry (Motion Blur)"
 
             # 3. Leaf Presence (Center Box Coverage via Excess Green Index: 2G - R - B)
             h, w = arr.shape[:2]
@@ -660,13 +848,13 @@ class LeafQualityAI:
 
             if leaf_pixels > 0.35:
                 presence_score = 95
-                presence_status = "Leaf Centered"
+                presence_status = "पत्ती केंद्र में है" if is_hi else "Leaf Centered"
             elif leaf_pixels > 0.18:
                 presence_score = 75
-                presence_status = "Partial Leaf"
+                presence_status = "आंशिक पत्ती" if is_hi else "Partial Leaf"
             else:
                 presence_score = 30
-                presence_status = "No Leaf in Box"
+                presence_status = "बॉक्स में पत्ती नहीं है" if is_hi else "No Leaf in Box"
 
             # Composite Quality Score (0 - 100%)
             overall_score = int(0.40 * sharpness_score + 0.30 * exposure_score + 0.30 * presence_score)
@@ -675,29 +863,45 @@ class LeafQualityAI:
             # Verdict & Color
             if overall_score >= 75 and sharpness_score >= 60 and exposure_score >= 50:
                 rating = "EXCELLENT"
-                msg = f"Quality: {overall_score}% (Sharp & Clear - Ready to Diagnose)"
+                msg = (
+                    f"गुणवत्ता: {overall_score}% (साफ़ और स्पष्ट - जाँच के लिए तैयार)"
+                    if is_hi else
+                    f"Quality: {overall_score}% (Sharp & Clear - Ready to Diagnose)"
+                )
                 color = GREEN_ACCENT
             elif overall_score >= 50:
                 rating = "GOOD"
-                msg = f"Quality: {overall_score}% ({sharp_status})"
+                msg = f"गुणवत्ता: {overall_score}% ({sharp_status})" if is_hi else f"Quality: {overall_score}% ({sharp_status})"
                 color = GREEN_PRIMARY
             elif sharpness_score < 45:
                 rating = "POOR"
-                msg = f"Quality: {overall_score}% ({sharp_status} — Hold still & Retake)"
+                msg = (
+                    f"गुणवत्ता: {overall_score}% ({sharp_status} — स्थिर रखें और फिर से फोटो लें)"
+                    if is_hi else
+                    f"Quality: {overall_score}% ({sharp_status} — Hold still & Retake)"
+                )
                 color = AMBER_WARN
             elif exposure_score < 45:
                 rating = "POOR"
-                msg = f"Quality: {overall_score}% ({lighting_status} — Adjust Light)"
+                msg = (
+                    f"गुणवत्ता: {overall_score}% ({lighting_status} — रोशनी ठीक करें)"
+                    if is_hi else
+                    f"Quality: {overall_score}% ({lighting_status} — Adjust Light)"
+                )
                 color = AMBER_WARN
             else:
                 rating = "POOR"
-                msg = f"Quality: {overall_score}% ({presence_status} — Center Leaf in Box)"
+                msg = (
+                    f"गुणवत्ता: {overall_score}% ({presence_status} — पत्ती को बॉक्स के बीच में रखें)"
+                    if is_hi else
+                    f"Quality: {overall_score}% ({presence_status} — Center Leaf in Box)"
+                )
                 color = RED_ALERT
 
             return overall_score, rating, msg, color
 
         except Exception as e:
-            return 75, "GOOD", f"Quality: Ready ({e})", GREEN_ACCENT
+            return 75, "GOOD", (f"गुणवत्ता: तैयार ({e})" if is_hi else f"Quality: Ready ({e})"), GREEN_ACCENT
 
 
 # =============================================================================
@@ -1546,6 +1750,8 @@ class AgriLensApp:
         self.sharpness_min = float(cfg.get("sharpness_min", SHARPNESS_MIN_THRESHOLD))
 
         self.selected_plant = None
+        self.lang = "HI" if str(cfg.get("language", "EN")).upper() == "HI" else "EN"
+        self.last_file_short_name = ""
         self.input_mode = "LIVE"  # Default: "LIVE" (if camera connected), auto-falls back to "FILE" if no camera
         self.startup_splash_active = True
         self.startup_start_ts = time.monotonic()
@@ -1593,6 +1799,7 @@ class AgriLensApp:
 
         # Load and display full-screen AGRILENS screensaver on startup (deactivates after 5s or on touch/click)
         self.splash_logo_img = self._load_splash_logo()
+        self._refresh_language_ui()
         self._show_fullscreen_screensaver(is_startup=True)
         self._update_stats_bar()
 
@@ -1926,7 +2133,8 @@ class AgriLensApp:
         lbl_brand = tk.Label(title_box, text="AGRILENS", font=self.f(14, True), fg=WHITE, bg=PANEL, cursor="hand2")
         lbl_brand.pack(anchor="w")
         ToolTip(lbl_brand, "AGRILENS Edge Vision Kiosk", f"Version: v{APP_VERSION}\nBuild: {BUILD_TIMESTAMP}\nModel: MobileNetV4 ONNX (24 Classes)", font_family=FONT)
-        tk.Label(title_box, text="AI Agricultural Health Diagnostics", font=self.f(8, True), fg=GREEN_ACCENT, bg=PANEL).pack(anchor="w")
+        self.brand_sub_lbl = tk.Label(title_box, text="AI Agricultural Health Diagnostics", font=self.f(8, True), fg=GREEN_ACCENT, bg=PANEL)
+        self.brand_sub_lbl.pack(anchor="w")
 
         # Far Right: Official Gundecha Education Academy Logo
         self._build_school_logo(top)
@@ -1934,11 +2142,140 @@ class AgriLensApp:
         # ADMIN BUTTON (Direct entry — password disabled)
         self.admin_btn = self._button(
             top, "ADMIN", CARD, self.open_admin_panel,
-            width=px(88), height=px(38), size=10, fg=WHITE, border=BORDER, parent_bg=PANEL
+            width=px(84), height=px(38), size=10, fg=WHITE, border=BORDER, parent_bg=PANEL
         )
-        self.admin_btn.pack(side="right", padx=(px(4), px(8)), pady=px(7))
+        self.admin_btn.pack(side="right", padx=(px(4), px(6)), pady=px(7))
+
+        # LANGUAGE TOGGLE BUTTON (Hindi / English — Main Screen Only)
+        self.lang_btn = self._button(
+            top, "🌐 हिंदी / EN", CARD, self.toggle_language,
+            width=px(110), height=px(38), size=10, fg=WHITE, border=GREEN_ACCENT, parent_bg=PANEL
+        )
+        self.lang_btn.pack(side="right", padx=(px(4), px(4)), pady=px(7))
 
         self._build_mode_dropdown()
+
+    def toggle_language(self):
+        """Toggles Main Screen language between English (EN) and Hindi (HI)."""
+        self._hide_mode_dropdown()
+        self.lang = "HI" if self.lang == "EN" else "EN"
+        self._save_current_settings()
+        self._refresh_language_ui()
+
+    def _refresh_language_ui(self):
+        """Updates all Main Screen static and dynamic UI text in the selected language (Hindi / English)."""
+        is_hi = (self.lang == "HI")
+        if hasattr(self, "lang_btn"):
+            if is_hi:
+                self.lang_btn.config(text="🌐 भाषा: हिंदी", bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE)
+            else:
+                self.lang_btn.config(text="🌐 हिंदी / EN", bg=CARD, border=GREEN_ACCENT, fg=WHITE)
+
+        if hasattr(self, "brand_sub_lbl"):
+            self.brand_sub_lbl.config(
+                text="एआई कृषि स्वास्थ्य निदान (AI Crop Diagnostics)" if is_hi else "AI Agricultural Health Diagnostics"
+            )
+
+        if hasattr(self, "plant_btn"):
+            if self.selected_plant is None:
+                self.plant_btn.config(text="फसल चुनें (ऑटो)" if is_hi else "SELECT CROP (AUTO)")
+            else:
+                p_txt = translate_crop_hi(self.selected_plant) if is_hi else self.selected_plant.upper()
+                self.plant_btn.config(text=f"फसल: {p_txt}" if is_hi else f"CROP: {p_txt}")
+
+        if hasattr(self, "rec_hdr_lbl"):
+            self.rec_hdr_lbl.config(
+                text="किसानों के लिए सुझाए गए उपाय" if is_hi else "RECOMMENDED FARMER ACTIONS"
+            )
+
+        if hasattr(self, "disclaimer_lbl"):
+            self.disclaimer_lbl.config(text=DISCLAIMER_HI if is_hi else DISCLAIMER)
+
+        if hasattr(self, "crop_info_badge"):
+            self.canvas.itemconfig(
+                self.crop_info_badge,
+                text="पत्ती क्रॉप करने हेतु हैंडल खींचें  •  डबल-टैप: पूर्ण" if is_hi else "DRAG HANDLES TO CROP LEAF  •  DOUBLE-TAP: FULL"
+            )
+
+        if hasattr(self, "picker_title_lbl"):
+            self.picker_title_lbl.config(text="जांच के लिए फसल चुनें" if is_hi else "SELECT CROP TO DIAGNOSE")
+        if hasattr(self, "picker_sub_lbl"):
+            self.picker_sub_lbl.config(
+                text="ऑटो-डिटेक्शन मोड सभी समर्थित फसलों की स्वचालित रूप से पहचान करता है"
+                if is_hi else "Auto-detection mode automatically identifies all supported plant species"
+            )
+        if hasattr(self, "picker_back_btn"):
+            self.picker_back_btn.config(text="स्कैनर पर वापस जाएं" if is_hi else "REVERT TO SCANNER")
+
+        self._refresh_mode_ui()
+
+        # Re-render active main-screen state in the selected language
+        if self.paused and self.captured_frame is not None:
+            is_live = self._is_live_mode()
+            cropped = self._get_cropped_leaf_image()
+            px0, py0, px1, py1 = self._get_crop_pixel_bounds()
+            pw, ph = max(1, px1 - px0), max(1, py1 - py0)
+            score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min, lang=self.lang)
+            if self.last_probs is not None:
+                self.quality_lbl.config(
+                    text=(f"चयनित भाग ({pw}×{ph} px) | {q_msg}" if is_hi else f"Diagnosed Crop ({pw}×{ph} px) | {q_msg}"),
+                    fg=q_color
+                )
+                if is_live:
+                    self.capture_btn.config(text="पुनः फोटो लें" if is_hi else "RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+                    self.canvas.itemconfig(
+                        self.live_badge,
+                        text="फोटो ली गई — क्रॉप करने हेतु हैंडल खींचें" if is_hi else "CAPTURED — DRAG HANDLES TO CROP",
+                        fill=GREEN_ACCENT
+                    )
+                else:
+                    self.capture_btn.config(text="फाइल से चुनें" if is_hi else "PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
+                    fn = self.last_file_short_name or "Sample"
+                    self.canvas.itemconfig(
+                        self.live_badge,
+                        text=(f"फाइल: {fn} (क्रॉप समायोजित करें)" if is_hi else f"FILE: {fn} (ADJUST CROP)"),
+                        fill=GREEN_ACCENT
+                    )
+                self._render_diagnosis(self.last_probs, self.last_raw_out)
+            else:
+                if is_live:
+                    self.quality_lbl.config(
+                        text=(f"पत्ती का भाग चुनने के लिए हैंडल खींचें | {q_msg}" if is_hi else f"Drag handles to select leaf area | {q_msg}"),
+                        fg=q_color
+                    )
+                    self.capture_btn.config(text="पुनः फोटो लें" if is_hi else "RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+                    self.canvas.itemconfig(
+                        self.live_badge,
+                        text="फोटो ली गई — क्रॉप करने हेतु हैंडल खींचें" if is_hi else "CAPTURED — DRAG HANDLES TO CROP",
+                        fill=GREEN_ACCENT
+                    )
+                else:
+                    fn = self.last_file_short_name or "Sample"
+                    self.quality_lbl.config(
+                        text=(f"पत्ती क्रॉप करने के लिए हैंडल खींचें ({fn}) | {q_msg}" if is_hi else f"Drag handles to crop leaf ({fn}) | {q_msg}"),
+                        fg=q_color
+                    )
+                    self.capture_btn.config(text="फाइल से चुनें" if is_hi else "PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
+                    self.canvas.itemconfig(
+                        self.live_badge,
+                        text=(f"फाइल: {fn} (क्रॉप समायोजित करें)" if is_hi else f"FILE: {fn} (ADJUST CROP)"),
+                        fill=GREEN_ACCENT
+                    )
+                self.banner_frame.config(bg=GREEN_PRIMARY)
+                self.banner.config(
+                    text=("क्रॉप हैंडल समायोजित करें -> अभी जांचें दबाएं" if is_hi else "ADJUST CROP HANDLES -> TAP DIAGNOSE NOW"),
+                    bg=GREEN_PRIMARY, fg=WHITE
+                )
+                self.disease_lbl.config(
+                    text=(
+                        "सटीक पत्ती क्षेत्र चुनने के लिए हरे हैंडल खींचें, फिर 'अभी जांचें' दबाएं।"
+                        if is_hi else
+                        "Drag green handles to select exact leaf area, then tap DIAGNOSE NOW."
+                    )
+                )
+                self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+        else:
+            self._reset_panel()
 
     def _build_mode_dropdown(self):
         px = self.px
@@ -1947,10 +2284,11 @@ class AgriLensApp:
             highlightbackground=GREEN_ACCENT, highlightthickness=max(1, px(2)),
             padx=px(10), pady=px(10)
         )
-        tk.Label(
+        self.mode_dd_hdr = tk.Label(
             self.mode_dropdown, text="SELECT INPUT MODE",
             font=self.f(9, True), fg=MUTED, bg=PANEL, anchor="w"
-        ).pack(fill="x", pady=(0, px(6)))
+        )
+        self.mode_dd_hdr.pack(fill="x", pady=(0, px(6)))
 
         self.mode_opt_live = self._button(
             self.mode_dropdown, "●  LIVE MODE (Camera)", GREEN_PRIMARY,
@@ -1974,25 +2312,38 @@ class AgriLensApp:
 
     def _refresh_mode_ui(self):
         is_live = (self.input_mode == "LIVE")
+        is_hi = (getattr(self, "lang", "EN") == "HI")
+        if hasattr(self, "mode_dd_hdr"):
+            self.mode_dd_hdr.config(text="इनपुट मोड चुनें" if is_hi else "SELECT INPUT MODE")
         if hasattr(self, "mode_btn"):
             if is_live:
-                self.mode_btn.config(text="MODE: LIVE MODE ▾", bg=CARD, border=GREEN_ACCENT, fg=WHITE)
+                self.mode_btn.config(
+                    text=("मोड: लाइव कैमरा ▾" if is_hi else "MODE: LIVE MODE ▾"),
+                    bg=CARD, border=GREEN_ACCENT, fg=WHITE
+                )
             else:
-                self.mode_btn.config(text="MODE: FILE MODE ▾", bg=CARD, border=AMBER_WARN, fg=AMBER_WARN)
+                self.mode_btn.config(
+                    text=("मोड: फाइल मोड ▾" if is_hi else "MODE: FILE MODE ▾"),
+                    bg=CARD, border=AMBER_WARN, fg=AMBER_WARN
+                )
         if hasattr(self, "mode_opt_live") and hasattr(self, "mode_opt_file"):
+            live_lbl_on = "●  लाइव मोड (कैमरा)" if is_hi else "●  LIVE MODE (Camera)"
+            live_lbl_off = "○  लाइव मोड (कैमरा)" if is_hi else "○  LIVE MODE (Camera)"
+            file_lbl_on = "●  फाइल मोड (सैंपल फाइलें)" if is_hi else "●  FILE MODE (Sample Files)"
+            file_lbl_off = "○  फाइल मोड (सैंपल फाइलें)" if is_hi else "○  FILE MODE (Sample Files)"
             if is_live:
                 self.mode_opt_live.config(
-                    text="●  LIVE MODE (Camera)", bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE
+                    text=live_lbl_on, bg=GREEN_PRIMARY, border=GREEN_ACCENT, fg=WHITE
                 )
                 self.mode_opt_file.config(
-                    text="○  FILE MODE (Sample Files)", bg=CARD, border=BORDER, fg=WHITE
+                    text=file_lbl_off, bg=CARD, border=BORDER, fg=WHITE
                 )
             else:
                 self.mode_opt_live.config(
-                    text="○  LIVE MODE (Camera)", bg=CARD, border=BORDER, fg=WHITE
+                    text=live_lbl_off, bg=CARD, border=BORDER, fg=WHITE
                 )
                 self.mode_opt_file.config(
-                    text="●  FILE MODE (Sample Files)", bg=AMBER_WARN, border=AMBER_WARN, fg=WHITE
+                    text=file_lbl_on, bg=AMBER_WARN, border=AMBER_WARN, fg=WHITE
                 )
 
     def toggle_mode_dropdown(self):
@@ -2012,6 +2363,7 @@ class AgriLensApp:
 
     def set_input_mode(self, mode, browse_on_file=False):
         mode = "LIVE" if str(mode).upper() == "LIVE" else "FILE"
+        is_hi = (getattr(self, "lang", "EN") == "HI")
         if mode == "LIVE" and not self._has_camera():
             # Camera is not connected — automatically default/fallback to File Mode
             self.input_mode = "FILE"
@@ -2024,7 +2376,11 @@ class AgriLensApp:
             self._reset_panel()
             self._update_stats_bar()
             self.quality_lbl.config(
-                text="No camera connected — Automatically defaulted to File Mode (diagnosis_samples/)",
+                text=(
+                    "कोई कैमरा जुड़ा नहीं है — स्वचालित रूप से फाइल मोड चुना गया (diagnosis_samples/)"
+                    if is_hi else
+                    "No camera connected — Automatically defaulted to File Mode (diagnosis_samples/)"
+                ),
                 fg=AMBER_WARN
             )
             return
@@ -2207,10 +2563,11 @@ class AgriLensApp:
 
         tk.Frame(right, bg=BORDER, height=max(1, px(1))).pack(fill="x", padx=rp, pady=(px(7), px(4)))
 
-        tk.Label(
+        self.rec_hdr_lbl = tk.Label(
             right, text="RECOMMENDED FARMER ACTIONS", font=self.f(10, True),
             fg=WHITE, bg=PANEL, anchor="w"
-        ).pack(fill="x", padx=rp, pady=(0, px(4)))
+        )
+        self.rec_hdr_lbl.pack(fill="x", padx=rp, pady=(0, px(4)))
 
         # Bottom Hardware / Latency Strip
         self.stats_lbl = tk.Label(
@@ -2219,10 +2576,11 @@ class AgriLensApp:
         )
         self.stats_lbl.pack(side="bottom", fill="x", padx=rp, pady=(0, px(4)))
 
-        tk.Label(
+        self.disclaimer_lbl = tk.Label(
             right, text=DISCLAIMER, font=self.f(8), fg=MUTED, bg=PANEL,
             anchor="w", justify="left", wraplength=wrap
-        ).pack(side="bottom", fill="x", padx=rp)
+        )
+        self.disclaimer_lbl.pack(side="bottom", fill="x", padx=rp)
 
         # Numbered recommendation rows
         steps_box = tk.Frame(right, bg=PANEL)
@@ -2249,19 +2607,31 @@ class AgriLensApp:
     def _build_plant_picker(self):
         px = self.px
         self.picker = tk.Frame(self.root, bg=BG)
-        tk.Label(self.picker, text="SELECT CROP TO DIAGNOSE", font=self.f(20, True), fg=WHITE, bg=BG).pack(pady=(px(24), px(4)))
-        tk.Label(self.picker, text="Auto-detection mode automatically identifies all supported plant species",
-                 font=self.f(10), fg=MUTED, bg=BG).pack()
+        self.picker_title_lbl = tk.Label(self.picker, text="SELECT CROP TO DIAGNOSE", font=self.f(20, True), fg=WHITE, bg=BG)
+        self.picker_title_lbl.pack(pady=(px(24), px(4)))
+        self.picker_sub_lbl = tk.Label(
+            self.picker, text="Auto-detection mode automatically identifies all supported plant species",
+            font=self.f(10), fg=MUTED, bg=BG
+        )
+        self.picker_sub_lbl.pack()
 
         self.picker_grid = tk.Frame(self.picker, bg=BG)
         self.picker_grid.pack(expand=True)
 
-        self._button(self.picker, "REVERT TO SCANNER", GREY_BTN, self.close_overlays, width=px(210), height=px(52), size=11, radius=px(16), fg=WHITE, parent_bg=BG).pack(pady=(0, px(22)))
+        self.picker_back_btn = self._button(
+            self.picker, "REVERT TO SCANNER", GREY_BTN, self.close_overlays,
+            width=px(210), height=px(52), size=11, radius=px(16), fg=WHITE, parent_bg=BG
+        )
+        self.picker_back_btn.pack(pady=(0, px(22)))
 
     def _fill_plant_picker(self):
         for w in self.picker_grid.winfo_children():
             w.destroy()
-        options = [("ALL PLANTS (AUTO - BETA)", None)] + [(p.upper(), p) for p in self.plants]
+        is_hi = (getattr(self, "lang", "EN") == "HI")
+        if is_hi:
+            options = [("सभी फसलें (ऑटो - बीटा)", None)] + [(f"{translate_crop_hi(p)} ({p.upper()})", p) for p in self.plants]
+        else:
+            options = [("ALL PLANTS (AUTO - BETA)", None)] + [(p.upper(), p) for p in self.plants]
         cols = 3 if len(options) > 4 else 2
         for i, (text, value) in enumerate(options):
             color = GREEN_PRIMARY if value == self.selected_plant else CARD
@@ -2282,10 +2652,12 @@ class AgriLensApp:
 
     def select_plant(self, plant):
         self.selected_plant = plant
+        is_hi = (getattr(self, "lang", "EN") == "HI")
         if plant is None:
-            self.plant_btn.config(text="SELECT CROP (AUTO)")
+            self.plant_btn.config(text="फसल चुनें (ऑटो)" if is_hi else "SELECT CROP (AUTO)")
         else:
-            self.plant_btn.config(text=f"CROP: {plant.upper()}")
+            p_txt = translate_crop_hi(plant) if is_hi else plant.upper()
+            self.plant_btn.config(text=f"फसल: {p_txt}" if is_hi else f"CROP: {p_txt}")
 
         if self.paused and self.last_probs:
             self._render_diagnosis(self.last_probs, self.last_raw_out)
@@ -3059,6 +3431,7 @@ class AgriLensApp:
             "cam_flip_v": bool(self.camera.flip_v),
             "cam_auto_exp": bool(self.camera.auto_exp),
             "cam_auto_wb": bool(self.camera.auto_wb),
+            "language": getattr(self, "lang", "EN"),
         }
         save_kiosk_config(cfg)
 
@@ -3735,21 +4108,32 @@ class AgriLensApp:
         self._crop_box_start = None
         cropped = self._get_cropped_leaf_image()
         if cropped is not None:
+            is_hi = (getattr(self, "lang", "EN") == "HI")
             px0, py0, px1, py1 = self._get_crop_pixel_bounds()
             pw, ph = max(1, px1 - px0), max(1, py1 - py0)
-            score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min)
-            self.quality_lbl.config(text=f"Selected Crop ({pw}×{ph} px) | {q_msg}", fg=q_color)
+            score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min, lang=self.lang)
+            self.quality_lbl.config(
+                text=(f"चयनित भाग ({pw}×{ph} px) | {q_msg}" if is_hi else f"Selected Crop ({pw}×{ph} px) | {q_msg}"),
+                fg=q_color
+            )
             if self.last_probs is not None:
                 self.banner_frame.config(bg=GREEN_PRIMARY)
-                self.banner.config(text="CROP SELECTION ADJUSTED — TAP DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
-                self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+                self.banner.config(
+                    text=("क्रॉप क्षेत्र बदला गया — अभी जांचें दबाएं" if is_hi else "CROP SELECTION ADJUSTED — TAP DIAGNOSE NOW"),
+                    bg=GREEN_PRIMARY, fg=WHITE
+                )
+                self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
 
     def _on_canvas_double_click(self, event):
         if self.paused and self.captured_frame is not None:
+            is_hi = (getattr(self, "lang", "EN") == "HI")
             self._init_crop_selection(full_default=True)
             cropped = self._get_cropped_leaf_image()
-            score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min)
-            self.quality_lbl.config(text=f"Full Image Selected | {q_msg}", fg=q_color)
+            score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min, lang=self.lang)
+            self.quality_lbl.config(
+                text=(f"पूर्ण चित्र चयनित | {q_msg}" if is_hi else f"Full Image Selected | {q_msg}"),
+                fg=q_color
+            )
 
     def _on_canvas_motion(self, event):
         if not self.paused or not self.crop_box:
@@ -3773,52 +4157,97 @@ class AgriLensApp:
     def _reset_panel(self):
         has_cam = self._has_camera()
         is_live = self._is_live_mode()
+        is_hi = (getattr(self, "lang", "EN") == "HI")
         self._refresh_mode_ui()
         if not self.paused:
             self._hide_crop_selection()
             self.canvas.itemconfig(self.guide, state="normal")
         self.banner_frame.config(bg=GREY_BTN)
         if self.selected_plant is None:
-            self.plant_lbl.config(text="Mode: Auto-Detect (Beta Production)")
+            self.plant_lbl.config(text="मोड: ऑटो-डिटेक्ट (बीटा)" if is_hi else "Mode: Auto-Detect (Beta Production)")
         else:
-            self.plant_lbl.config(text=f"Selected Plant: {self.selected_plant.upper()}")
+            p_txt = translate_crop_hi(self.selected_plant) if is_hi else self.selected_plant.upper()
+            self.plant_lbl.config(text=f"चयनित फसल: {p_txt}" if is_hi else f"Selected Plant: {p_txt}")
 
         if is_live:
-            self.banner.config(text="READY — AIM LEAF AT CAMERA", bg=GREY_BTN, fg=WHITE)
-            self.disease_lbl.config(text="Aim leaf -> Tap CAPTURE -> Drag Crop Handles -> Tap DIAGNOSE")
-            self.capture_btn.config(text="CAPTURE LEAF", bg=GREEN_PRIMARY, fg=WHITE)
-            self.canvas.itemconfig(self.live_badge, text="LIVE WEBCAM", fill=GREEN_ACCENT)
+            self.banner.config(
+                text=("तैयार — पत्ती को कैमरे के सामने रखें" if is_hi else "READY — AIM LEAF AT CAMERA"),
+                bg=GREY_BTN, fg=WHITE
+            )
+            self.disease_lbl.config(
+                text=(
+                    "पत्ती बॉक्स में रखें -> फोटो लें -> हैंडल खींचें -> पत्ती जांचें दबाएं"
+                    if is_hi else
+                    "Aim leaf -> Tap CAPTURE -> Drag Crop Handles -> Tap DIAGNOSE"
+                )
+            )
+            self.capture_btn.config(text="फोटो लें" if is_hi else "CAPTURE LEAF", bg=GREEN_PRIMARY, fg=WHITE)
+            self.canvas.itemconfig(self.live_badge, text="लाइव कैमरा" if is_hi else "LIVE WEBCAM", fill=GREEN_ACCENT)
             self.canvas.itemconfig(self.msg_txt, text="")
-            self.quality_lbl.config(text="Leaf Quality AI: Align leaf inside box", fg=MUTED)
+            self.quality_lbl.config(
+                text=("पत्ती गुणवत्ता एआई: पत्ती को बॉक्स के अंदर रखें" if is_hi else "Leaf Quality AI: Align leaf inside box"),
+                fg=MUTED
+            )
         else:
-            self.banner.config(text="FILE MODE — PICK LEAF IMAGE FROM FILE", bg=GREY_BTN, fg=WHITE)
-            self.disease_lbl.config(text="Tap PICK FROM FILE -> Drag Crop Handles -> Tap DIAGNOSE")
-            self.capture_btn.config(text="PICK FROM FILE", bg=GREEN_PRIMARY, fg=WHITE)
-            badge_txt = "FILE MODE (SAMPLES)" if has_cam else "FILE MODE (NO CAMERA)"
+            self.banner.config(
+                text=("फाइल मोड — फाइल से पत्ती की फोटो चुनें" if is_hi else "FILE MODE — PICK LEAF IMAGE FROM FILE"),
+                bg=GREY_BTN, fg=WHITE
+            )
+            self.disease_lbl.config(
+                text=(
+                    "फाइल से चुनें दबाएं -> क्रॉप हैंडल खींचें -> पत्ती जांचें दबाएं"
+                    if is_hi else
+                    "Tap PICK FROM FILE -> Drag Crop Handles -> Tap DIAGNOSE"
+                )
+            )
+            self.capture_btn.config(text="फाइल से चुनें" if is_hi else "PICK FROM FILE", bg=GREEN_PRIMARY, fg=WHITE)
+            if is_hi:
+                badge_txt = "फाइल मोड (सैंपल)" if has_cam else "फाइल मोड (कैमरा नहीं)"
+            else:
+                badge_txt = "FILE MODE (SAMPLES)" if has_cam else "FILE MODE (NO CAMERA)"
             self.canvas.itemconfig(self.live_badge, text=badge_txt, fill=AMBER_WARN)
             if not self.paused:
                 self._photo = None
                 self.canvas.itemconfig(self.img_item, image="")
-                header_msg = (
-                    "File Mode Selected — Browse Default Sample Files"
-                    if has_cam else
-                    "No camera connected — Defaulted to File Mode"
-                )
-                self.canvas.itemconfig(
-                    self.msg_txt,
-                    text=(
-                        f"{header_msg}\n\n"
-                        "Tap 'PICK FROM FILE' below (or click here)\n"
-                        "Folder: diagnosis_samples/ (Apple, Mango, Potato, Tomato)"
+                if is_hi:
+                    header_msg = (
+                        "फाइल मोड चयनित — डिफ़ॉल्ट सैंपल फाइलें ब्राउज़ करें"
+                        if has_cam else
+                        "कोई कैमरा जुड़ा नहीं है — डिफ़ॉल्ट फाइल मोड सक्रिय"
                     )
-                )
+                    self.canvas.itemconfig(
+                        self.msg_txt,
+                        text=(
+                            f"{header_msg}\n\n"
+                            "नीचे 'फाइल से चुनें' दबाएं (या यहाँ क्लिक करें)\n"
+                            "फ़ोल्डर: diagnosis_samples/ (सेब, आम, आलू, टमाटर)"
+                        )
+                    )
+                else:
+                    header_msg = (
+                        "File Mode Selected — Browse Default Sample Files"
+                        if has_cam else
+                        "No camera connected — Defaulted to File Mode"
+                    )
+                    self.canvas.itemconfig(
+                        self.msg_txt,
+                        text=(
+                            f"{header_msg}\n\n"
+                            "Tap 'PICK FROM FILE' below (or click here)\n"
+                            "Folder: diagnosis_samples/ (Apple, Mango, Potato, Tomato)"
+                        )
+                    )
             self.quality_lbl.config(
-                text="File Mode: Browse leaf samples in diagnosis_samples/ (Apple, Mango, Potato, Tomato)",
+                text=(
+                    "फाइल मोड: diagnosis_samples/ में पत्ती के सैंपल चुनें (सेब, आम, आलू, टमाटर)"
+                    if is_hi else
+                    "File Mode: Browse leaf samples in diagnosis_samples/ (Apple, Mango, Potato, Tomato)"
+                ),
                 fg=MUTED
             )
 
-        self.diagnose_btn.config(text="DIAGNOSE LEAF", bg=CARD, fg=WHITE)
-        self._draw_bar(0, GREY_BTN, "Waiting for leaf...")
+        self.diagnose_btn.config(text="पत्ती जांचें" if is_hi else "DIAGNOSE LEAF", bg=CARD, fg=WHITE)
+        self._draw_bar(0, GREY_BTN, "पत्ती की प्रतीक्षा है..." if is_hi else "Waiting for leaf...")
         for row, num, txt in self.step_rows:
             num.config(bg=GREEN_PRIMARY, fg=WHITE)
             txt.config(text="")
@@ -3831,6 +4260,7 @@ class AgriLensApp:
         self._hide_mode_dropdown()
         if self.startup_splash_active or self.standby_active or self._waking_from_standby or time.monotonic() < self._wake_guard_until:
             return False
+        is_hi = (getattr(self, "lang", "EN") == "HI")
         base_dir = ensure_diagnosis_samples_dir()
         init_dir = base_dir
         if self.selected_plant:
@@ -3849,7 +4279,7 @@ class AgriLensApp:
             filepath = filedialog.askopenfilename(
                 parent=self.root,
                 initialdir=init_dir,
-                title="Select Leaf Image for Diagnosis (diagnosis_samples)",
+                title="जांच के लिए पत्ती की फोटो चुनें (diagnosis_samples)" if is_hi else "Select Leaf Image for Diagnosis (diagnosis_samples)",
                 filetypes=[
                     ("Leaf Images", "*.jpg *.jpeg *.png *.bmp *.webp *.JPG *.JPEG *.PNG"),
                     ("All Files", "*.*"),
@@ -3865,7 +4295,10 @@ class AgriLensApp:
             with Image.open(filepath) as raw_im:
                 loaded_img = raw_im.convert("RGB")
         except Exception as e:
-            self.quality_lbl.config(text=f"Could not open image file: {e}", fg=RED_ALERT)
+            self.quality_lbl.config(
+                text=(f"फोटो फाइल नहीं खुल सकी: {e}" if is_hi else f"Could not open image file: {e}"),
+                fg=RED_ALERT
+            )
             return False
 
         self.latest_frame = loaded_img
@@ -3878,20 +4311,37 @@ class AgriLensApp:
         short_name = os.path.basename(filepath)
         if len(short_name) > 26:
             short_name = short_name[:23] + "..."
+        self.last_file_short_name = short_name
 
         self._show_image(self.captured_frame)
         self._init_crop_selection()
-        self.canvas.itemconfig(self.live_badge, text=f"FILE: {short_name} (ADJUST CROP)", fill=GREEN_ACCENT)
+        self.canvas.itemconfig(
+            self.live_badge,
+            text=(f"फाइल: {short_name} (क्रॉप समायोजित करें)" if is_hi else f"FILE: {short_name} (ADJUST CROP)"),
+            fill=GREEN_ACCENT
+        )
 
         cropped = self._get_cropped_leaf_image()
-        score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min)
-        self.quality_lbl.config(text=f"Drag handles to crop leaf ({short_name}) | {q_msg}", fg=q_color)
+        score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min, lang=self.lang)
+        self.quality_lbl.config(
+            text=(f"पत्ती क्रॉप करने के लिए हैंडल खींचें ({short_name}) | {q_msg}" if is_hi else f"Drag handles to crop leaf ({short_name}) | {q_msg}"),
+            fg=q_color
+        )
         self.banner_frame.config(bg=GREEN_PRIMARY)
-        self.banner.config(text="ADJUST CROP HANDLES -> TAP DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
-        self.disease_lbl.config(text="Drag green handles on image to select exact leaf area, then tap DIAGNOSE NOW.")
+        self.banner.config(
+            text=("क्रॉप हैंडल समायोजित करें -> अभी जांचें दबाएं" if is_hi else "ADJUST CROP HANDLES -> TAP DIAGNOSE NOW"),
+            bg=GREEN_PRIMARY, fg=WHITE
+        )
+        self.disease_lbl.config(
+            text=(
+                "सटीक पत्ती क्षेत्र चुनने के लिए फोटो पर हरे हैंडल खींचें, फिर 'अभी जांचें' दबाएं।"
+                if is_hi else
+                "Drag green handles on image to select exact leaf area, then tap DIAGNOSE NOW."
+            )
+        )
 
-        self.capture_btn.config(text="PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
-        self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+        self.capture_btn.config(text="फाइल से चुनें" if is_hi else "PICK FROM FILE", bg=AMBER_WARN, fg=WHITE)
+        self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
         return True
 
     def handle_capture_or_retake(self):
@@ -3903,6 +4353,7 @@ class AgriLensApp:
             self.pick_image_from_file()
             return
 
+        is_hi = (getattr(self, "lang", "EN") == "HI")
         if not self.paused:
             # 1. ACTION: CAPTURE (Freezes frame and activates manual crop selection handles)
             if self.latest_frame is not None:
@@ -3911,20 +4362,39 @@ class AgriLensApp:
                 self.canvas.itemconfig(self.guide, state="hidden")
                 self._show_image(self.captured_frame)
                 self._init_crop_selection()
-                self.canvas.itemconfig(self.live_badge, text="CAPTURED — DRAG HANDLES TO CROP", fill=GREEN_ACCENT)
+                self.canvas.itemconfig(
+                    self.live_badge,
+                    text=("फोटो ली गई — क्रॉप करने हेतु हैंडल खींचें" if is_hi else "CAPTURED — DRAG HANDLES TO CROP"),
+                    fill=GREEN_ACCENT
+                )
 
                 cropped = self._get_cropped_leaf_image()
-                score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min)
-                self.quality_lbl.config(text=f"Drag handles to select leaf area | {q_msg}", fg=q_color)
+                score, rating, q_msg, q_color = LeafQualityAI.assess(cropped, self.sharpness_min, lang=self.lang)
+                self.quality_lbl.config(
+                    text=(f"पत्ती का भाग चुनने के लिए हैंडल खींचें | {q_msg}" if is_hi else f"Drag handles to select leaf area | {q_msg}"),
+                    fg=q_color
+                )
                 self.banner_frame.config(bg=GREEN_PRIMARY)
-                self.banner.config(text="ADJUST CROP HANDLES -> TAP DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
-                self.disease_lbl.config(text="Drag green handles to select exact leaf area, then tap DIAGNOSE NOW.")
+                self.banner.config(
+                    text=("क्रॉप हैंडल समायोजित करें -> अभी जांचें दबाएं" if is_hi else "ADJUST CROP HANDLES -> TAP DIAGNOSE NOW"),
+                    bg=GREEN_PRIMARY, fg=WHITE
+                )
+                self.disease_lbl.config(
+                    text=(
+                        "सटीक पत्ती क्षेत्र चुनने के लिए हरे हैंडल खींचें, फिर 'अभी जांचें' दबाएं।"
+                        if is_hi else
+                        "Drag green handles to select exact leaf area, then tap DIAGNOSE NOW."
+                    )
+                )
 
                 # Swap Capture to RETAKE and Diagnose to DIAGNOSE NOW
-                self.capture_btn.config(text="RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
-                self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+                self.capture_btn.config(text="पुनः फोटो लें" if is_hi else "RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+                self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
             else:
-                self.quality_lbl.config(text="Camera not ready. Switch to File Mode or check USB webcam.", fg=RED_ALERT)
+                self.quality_lbl.config(
+                    text=("कैमरा तैयार नहीं है। फाइल मोड चुनें या USB वेबकैम जांचें।" if is_hi else "Camera not ready. Switch to File Mode or check USB webcam."),
+                    fg=RED_ALERT
+                )
         else:
             # 2. ACTION: RETAKE (Unfreeze and hide crop handles)
             self.paused = False
@@ -3945,6 +4415,7 @@ class AgriLensApp:
             if not self.pick_image_from_file():
                 return
 
+        is_hi = (getattr(self, "lang", "EN") == "HI")
         if self._is_live_mode() and self.captured_frame is None and self.latest_frame is not None:
             # If user directly pressed DIAGNOSE while live, capture frame and initialize crop box first
             self.paused = True
@@ -3952,22 +4423,33 @@ class AgriLensApp:
             self.canvas.itemconfig(self.guide, state="hidden")
             self._show_image(self.captured_frame)
             self._init_crop_selection()
-            self.canvas.itemconfig(self.live_badge, text="CAPTURED — DRAG HANDLES TO CROP", fill=GREEN_ACCENT)
-            self.capture_btn.config(text="RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
-            self.diagnose_btn.config(text="DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
+            self.canvas.itemconfig(
+                self.live_badge,
+                text=("फोटो ली गई — क्रॉप करने हेतु हैंडल खींचें" if is_hi else "CAPTURED — DRAG HANDLES TO CROP"),
+                fill=GREEN_ACCENT
+            )
+            self.capture_btn.config(text="पुनः फोटो लें" if is_hi else "RETAKE LEAF", bg=AMBER_WARN, fg=WHITE)
+            self.diagnose_btn.config(text="अभी जांचें" if is_hi else "DIAGNOSE NOW", bg=GREEN_PRIMARY, fg=WHITE)
 
         target_img = self._get_cropped_leaf_image()
         if target_img is None:
             if self._is_live_mode():
-                self.disease_lbl.config(text="No leaf image captured! Please aim at leaf and tap CAPTURE.")
+                self.disease_lbl.config(
+                    text=("पत्ती की फोटो नहीं ली गई! कृपया कैमरे के सामने पत्ती रखें और 'फोटो लें' दबाएं।" if is_hi else "No leaf image captured! Please aim at leaf and tap CAPTURE.")
+                )
             else:
-                self.disease_lbl.config(text="No image selected! Tap PICK FROM FILE to load a leaf image.")
+                self.disease_lbl.config(
+                    text=("कोई फोटो नहीं चुनी गई! पत्ती की फोटो लोड करने के लिए 'फाइल से चुनें' दबाएं।" if is_hi else "No image selected! Tap PICK FROM FILE to load a leaf image.")
+                )
             return
 
         px0, py0, px1, py1 = self._get_crop_pixel_bounds()
         pw, ph = max(1, px1 - px0), max(1, py1 - py0)
-        score, rating, q_msg, q_color = LeafQualityAI.assess(target_img, self.sharpness_min)
-        self.quality_lbl.config(text=f"Diagnosed Crop ({pw}×{ph} px) | {q_msg}", fg=q_color)
+        score, rating, q_msg, q_color = LeafQualityAI.assess(target_img, self.sharpness_min, lang=self.lang)
+        self.quality_lbl.config(
+            text=(f"चयनित भाग ({pw}×{ph} px) | {q_msg}" if is_hi else f"Diagnosed Crop ({pw}×{ph} px) | {q_msg}"),
+            fg=q_color
+        )
 
         if self.classifier:
             res = self.classifier.predict(target_img)
@@ -3983,6 +4465,7 @@ class AgriLensApp:
             self._update_stats_bar()
 
     def _render_diagnosis(self, probs, raw_out=None):
+        is_hi = (getattr(self, "lang", "EN") == "HI")
         labels = self.classifier.labels
         n = len(labels)
         raw_probs = list(probs)
@@ -4027,46 +4510,66 @@ class AgriLensApp:
         # or top-1 vs top-2 margin is too narrow.
         is_low_confidence = (conf < self.threshold) or (active_margin < self.ood_margin)
 
+        crop_disp = translate_crop_hi(crop) if is_hi else crop
+        cond_disp = translate_cond_hi(cond) if is_hi else cond
+
         if is_unknown_plant:
-            status = "UNKNOWN PLANT / OUT OF SCOPE"
+            status = "अज्ञात पौधा / समर्थित सूची से बाहर" if is_hi else "UNKNOWN PLANT / OUT OF SCOPE"
             color = AMBER_WARN
-            plant_txt = "Plant: Unrecognized (Outside Catalog)"
-            disease_txt = "Specimen outside supported scope (Apple, Mango, Potato, Tomato)"
-            steps = OOD_STEPS
+            plant_txt = "पौधा: अपरिचित (समर्थित सूची से बाहर)" if is_hi else "Plant: Unrecognized (Outside Catalog)"
+            disease_txt = (
+                "नमूना समर्थित फसलों से बाहर है (सेब, आम, आलू, टमाटर)"
+                if is_hi else
+                "Specimen outside supported scope (Apple, Mango, Potato, Tomato)"
+            )
+            steps = OOD_STEPS_HI if is_hi else OOD_STEPS
             num_color = AMBER_WARN
-            btn_txt = "UNKNOWN LEAF"
+            btn_txt = "अज्ञात पत्ती" if is_hi else "UNKNOWN LEAF"
             btn_color = AMBER_WARN
         elif is_low_confidence:
-            status = "LOW CONFIDENCE — PLEASE RETAKE"
+            status = "कम स्पष्टता (LOW CONFIDENCE) — पुनः फोटो लें" if is_hi else "LOW CONFIDENCE — PLEASE RETAKE"
             color = AMBER_WARN
             if self.selected_plant:
-                plant_txt = f"Selected: {self.selected_plant.upper()}"
+                p_sel = translate_crop_hi(self.selected_plant) if is_hi else self.selected_plant.upper()
+                plant_txt = f"चयनित फसल: {p_sel}" if is_hi else f"Selected: {p_sel}"
             else:
-                plant_txt = "Mode: Auto-Detect (Beta Production)"
-            disease_txt = "Low Confidence — Cannot Safely Identify"
-            steps = UNSURE_STEPS
+                plant_txt = "मोड: ऑटो-डिटेक्ट (बीटा)" if is_hi else "Mode: Auto-Detect (Beta Production)"
+            disease_txt = "कम विश्वास स्तर — सुरक्षित पहचान संभव नहीं" if is_hi else "Low Confidence — Cannot Safely Identify"
+            steps = UNSURE_STEPS_HI if is_hi else UNSURE_STEPS
             num_color = AMBER_WARN
-            btn_txt = "LOW CONFIDENCE"
+            btn_txt = "कम स्पष्टता" if is_hi else "LOW CONFIDENCE"
             btn_color = AMBER_WARN
         elif healthy:
-            status = "HEALTHY LEAF — NO DISEASE"
+            status = "स्वस्थ पत्ती — कोई रोग नहीं" if is_hi else "HEALTHY LEAF — NO DISEASE"
             color = GREEN_PRIMARY
-            auto_suffix = " (Auto-Detected)" if self.selected_plant is None else ""
-            plant_txt = f"Plant: {crop}{auto_suffix}" if crop else ("Auto-Detect (Beta Production)" if self.selected_plant is None else "")
-            disease_txt = "No Disease Detected (Healthy Foliage)"
-            steps = get_recommendation(crop, cond)
+            if is_hi:
+                auto_suffix = " (स्वतः पहचाना गया)" if self.selected_plant is None else ""
+                plant_txt = f"फसल: {crop_disp}{auto_suffix}" if crop else ("ऑटो-डिटेक्ट (बीटा)" if self.selected_plant is None else "")
+                disease_txt = "कोई रोग नहीं मिला (स्वस्थ पत्ती)"
+                btn_txt = "स्वस्थ फसल"
+            else:
+                auto_suffix = " (Auto-Detected)" if self.selected_plant is None else ""
+                plant_txt = f"Plant: {crop}{auto_suffix}" if crop else ("Auto-Detect (Beta Production)" if self.selected_plant is None else "")
+                disease_txt = "No Disease Detected (Healthy Foliage)"
+                btn_txt = "HEALTHY CROP"
+            steps = get_recommendation(crop, cond, lang=self.lang)
             num_color = GREEN_PRIMARY
-            btn_txt = "HEALTHY CROP"
             btn_color = GREEN_PRIMARY
         else:
-            status = f"{cond.upper()} DETECTED"
+            status = f"{cond_disp} रोग मिला" if is_hi else f"{cond.upper()} DETECTED"
             color = RED_ALERT
-            auto_suffix = " (Auto-Detected)" if self.selected_plant is None else ""
-            plant_txt = f"Plant: {crop}{auto_suffix}" if crop else ("Auto-Detect (Beta Production)" if self.selected_plant is None else "")
-            disease_txt = cond
-            steps = get_recommendation(crop, cond)
+            if is_hi:
+                auto_suffix = " (स्वतः पहचाना गया)" if self.selected_plant is None else ""
+                plant_txt = f"फसल: {crop_disp}{auto_suffix}" if crop else ("ऑटो-डिटेक्ट (बीटा)" if self.selected_plant is None else "")
+                disease_txt = cond_disp
+                btn_txt = "रोग मिला"
+            else:
+                auto_suffix = " (Auto-Detected)" if self.selected_plant is None else ""
+                plant_txt = f"Plant: {crop}{auto_suffix}" if crop else ("Auto-Detect (Beta Production)" if self.selected_plant is None else "")
+                disease_txt = cond
+                btn_txt = "DISEASE FOUND"
+            steps = get_recommendation(crop, cond, lang=self.lang)
             num_color = RED_ALERT
-            btn_txt = "DISEASE FOUND"
             btn_color = RED_ALERT
 
         # Update Banner & Texts
@@ -4079,7 +4582,12 @@ class AgriLensApp:
 
         # Update Confidence Bar (if unknown plant, display the rejection message)
         if is_unknown_plant:
-            self._draw_bar(raw_top1, color, f"Uncertain Match: {raw_top1 * 100:.1f}% (Rejected as Unknown)")
+            rej_txt = (
+                f"अनिश्चित मिलान: {raw_top1 * 100:.1f}% (अज्ञात के रूप में अस्वीकृत)"
+                if is_hi else
+                f"Uncertain Match: {raw_top1 * 100:.1f}% (Rejected as Unknown)"
+            )
+            self._draw_bar(raw_top1, color, rej_txt)
         else:
             self._draw_bar(conf, color)
 
@@ -4095,7 +4603,9 @@ class AgriLensApp:
         self.bar.delete("all")
         if frac > 0:
             self.bar.create_rectangle(0, 0, int(self.BAR_W * frac), self.BAR_H, fill=color, width=0)
-        lbl_text = f"Confidence: {frac * 100:.1f}%" if text is None else text
+        is_hi = (getattr(self, "lang", "EN") == "HI")
+        default_lbl = f"विश्वास स्तर (Confidence): {frac * 100:.1f}%" if is_hi else f"Confidence: {frac * 100:.1f}%"
+        lbl_text = default_lbl if text is None else text
         self.bar.create_text(
             self.BAR_W // 2, self.BAR_H // 2, fill=TEXT,
             font=self.f(9, True), text=lbl_text

@@ -1,7 +1,7 @@
 # AGRILENS — AI Plant Health & Disease Diagnosis Kiosk
 
-[![Version](https://img.shields.io/badge/version-v4.9.1-16a34a.svg)](Documentation_and_References/REVISION.md)
-[![Build](https://img.shields.io/badge/build-2026--11--15%2014%3A27%20IST-0ea5e9.svg)](Documentation_and_References/REVISION.md)
+[![Version](https://img.shields.io/badge/version-v4.9.2-16a34a.svg)](Documentation_and_References/REVISION.md)
+[![Build](https://img.shields.io/badge/build-2026--11--15%2014%3A36%20IST-0ea5e9.svg)](Documentation_and_References/REVISION.md)
 [![Model](https://img.shields.io/badge/backbone-MobileNetV4--Conv--Small%20ONNX-22c55e.svg)](MobileV4/agrilens.onnx)
 [![Classes](https://img.shields.io/badge/classes-24%20Classes%20(4%20Crops)-f59e0b.svg)](MobileV4/labels.txt)
 [![Partner](https://img.shields.io/badge/partner-Gundecha%20Education%20Academy-dc2626.svg)](https://www.gundechaedu.org/)
@@ -14,8 +14,8 @@
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.9.1` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 14:27 IST` (November 15, 2026)** |
+| **Current Version** | **`v4.9.2` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 14:36 IST` (November 15, 2026)** |
 | **Vision Model** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Single-File ONNX (~10.07 MB) |
 | **Training Dataset** | 23,893 images across 24 classes (15 Epochs, 97.28% – 98.31% Val Accuracy) |
 | **Inference Latency** | ~24–40 ms on CPU (3-view training-aligned ensemble on Raspberry Pi 5 / PC) |
@@ -30,6 +30,7 @@
 ## 🌟 Key Features
 
 - **24-Class MobileNetV4 Edge Vision:** Single-file ONNX model (`agrilens.onnx`, ~10.07 MB with all weights embedded) trained across 24 healthy and diseased conditions for Apple, Mango, Potato, and Tomato.
+- **Bilingual Main Screen (Hindi / English `🌐 हिंदी / EN`):** Instant 1-tap language toggle on the main screen (persisted in `kiosk_config.json`) that translates all main-screen instructions, buttons (`फोटो लें`, `पुनः फोटो लें`, `फाइल से चुनें`, `पत्ती जांचें`, `अभी जांचें`), crop & disease names, Leaf Quality AI status messages, confidence bars, and 4-step farmer recommendations into Hindi while keeping the Admin Console and Camera Control Panel in English.
 - **Interactive Manual Crop Selection Handles & Mobile Screen Optimization:** Upon capturing a leaf (`CAPTURE LEAF`) or loading an image (`PICK FROM FILE`), an adjustable 8-handle crop selection box appears on the image (pre-inset by 14% to exclude mobile phone bezels and fingers). Pressing **`DIAGNOSE NOW`** runs a dual-stream MobileNetV4 ensemble (Natural RGB + Mobile-Screen De-Moiré / Anti-Glare / Blue-Backlight-Neutralized RGB) strictly on the cropped selection.
 - **Direct 1-Tap Admin & Camera Control Panel:** Tapping **`ADMIN`** opens the Admin Console directly (password lock disabled for quick access).
 - **Over-The-Air (OTA) Software Updater & Remote Internet Connectivity:** Triggers **immediately on reboot/startup** (`_trigger_ota_update(silent_boot=True)` and `agrilens-ota.service`) and **immediately on manual tap** via the **`☁ OTA UPDATE (INTERNET)`** button in the Admin Console (with strict anti-downgrade version protection and per-file SHA-256 verification). Also includes automated Raspberry Pi remote provisioning (`setup_remote_ota.sh` configuring **Raspberry Pi Connect** and **SSH**).
