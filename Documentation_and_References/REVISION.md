@@ -8,9 +8,9 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.9.3` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 17:12 IST` (November 15, 2026)** |
-| **Build Identifier** | `BUILD-20261115-1712-V493` |
+| **Current Version** | **`v4.9.4` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 17:35 IST` (November 15, 2026)** |
+| **Build Identifier** | `BUILD-20261115-1735-V494` |
 | **Vision Backbone** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Universal Inverted Bottleneck (UIB) in ONNX format |
 | **Model Weights** | Single-file `agrilens.onnx` (`10,068,009 bytes` / `~10.07 MB`, all weights embedded) |
 | **Supported Classes** | **24 Classes** across **4 Crops** (`Apple`, `Mango`, `Potato`, `Tomato`) trained on 23,893 images |
@@ -24,7 +24,8 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Version | Release Date | Primary Engine | Classes | Model Size | Key Highlights |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`v4.9.3`** | **2026-11-15 17:12 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **World-Class Touch UI/UX Redesign: Unified Top Control Bar (`🌱 CROP`, `📷 MODE`, `🌐 हिंदी / EN`, `⚙ ADMIN`), Larger `52px` Action Buttons (`📸 CAPTURE LEAF`, `🔍 DIAGNOSE LEAF`), Card-Framed Farmer Recommendations & Enhanced Typography** |
+| **`v4.9.4`** | **2026-11-15 17:35 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **Screensaver Inactivity Timeout Extended from 30 Seconds to 3 Minutes (`INACTIVITY_TIMEOUT_SECONDS = 180.0`)** |
+| `v4.9.3` | 2026-11-15 17:12 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | World-Class Touch UI/UX Redesign: Unified Top Control Bar (`🌱 CROP`, `📷 MODE`, `🌐 हिंदी / EN`, `⚙ ADMIN`), Larger `52px` Action Buttons (`📸 CAPTURE LEAF`, `🔍 DIAGNOSE LEAF`), Card-Framed Farmer Recommendations & Enhanced Typography |
 | `v4.9.2` | 2026-11-15 14:36 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Bilingual Main Screen Toggle (`🌐 हिंदी / EN`) — Full Hindi & English Support for Instructions, Buttons, Crop/Disease Names, Quality AI, and Farmer Recommendations |
 | `v4.9.1` | 2026-11-15 14:27 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Remote Over-The-Air (OTA) Trained Model Updates (`agrilens.onnx` via `MODEL_SHA256` Zero-Overhead Fingerprint Check) |
 | `v4.9.0` | 2026-11-15 14:08 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Full-Screen Logo Screensaver Overlay (Deactivated on Touch/Click), Clean `AGRILENS` Top Title, and Version Display in Bottom Status Bar (`AGRILENS v4.9.0`) |
@@ -48,6 +49,13 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 ---
 
 ## 📜 Detailed Changelog by Build
+
+### [v4.9.4] — 2026-11-15 17:35 IST
+#### ✨ Changed
+1. **Screensaver Activates Only After 3 Minutes of Inactivity**:
+   - Increased `INACTIVITY_TIMEOUT_SECONDS` from `30.0` to `180.0` so the full-screen logo screensaver (and camera power-off) only triggers after 3 minutes without any touch, click, or key press.
+
+---
 
 ### [v4.9.3] — 2026-11-15 17:12 IST
 #### ✨ Added & Enhanced

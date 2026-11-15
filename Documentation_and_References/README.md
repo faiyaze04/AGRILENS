@@ -1,7 +1,7 @@
 # AGRILENS — AI Plant Health & Disease Diagnosis Kiosk
 
-[![Version](https://img.shields.io/badge/version-v4.9.3-16a34a.svg)](REVISION.md)
-[![Build](https://img.shields.io/badge/build-2026--11--15%2017%3A12%20IST-0ea5e9.svg)](REVISION.md)
+[![Version](https://img.shields.io/badge/version-v4.9.4-16a34a.svg)](REVISION.md)
+[![Build](https://img.shields.io/badge/build-2026--11--15%2017%3A35%20IST-0ea5e9.svg)](REVISION.md)
 [![Model](https://img.shields.io/badge/backbone-MobileNetV4--Conv--Small%20ONNX-22c55e.svg)](../MobileV4/agrilens.onnx)
 [![Classes](https://img.shields.io/badge/classes-24%20Classes%20(4%20Crops)-f59e0b.svg)](../MobileV4/labels.txt)
 [![Partner](https://img.shields.io/badge/partner-Gundecha%20Education%20Academy-dc2626.svg)](https://www.gundechaedu.org/)
@@ -14,8 +14,8 @@
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.9.3` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 17:12 IST` (November 15, 2026)** |
+| **Current Version** | **`v4.9.4` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 17:35 IST` (November 15, 2026)** |
 | **Vision Model** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Single-File ONNX (~10.07 MB) |
 | **Training Dataset** | 23,893 images across 24 classes (15 Epochs, 97.28% – 98.31% Val Accuracy) |
 | **Inference Latency** | ~24–40 ms on CPU (3-view training-aligned ensemble on Raspberry Pi 5 / PC) |
@@ -27,12 +27,12 @@
 
 ---
 
-## 🌟 Key Features in v4.9.3
+## 🌟 Key Features in v4.9.4
 
 - **24-Class MobileNetV4 Edge Vision:** Powered by a single-file MobileNetV4-Conv-Small ONNX model (`agrilens.onnx`, ~10.07 MB with all weights embedded) trained on 23,893 images across 24 classes for Apple, Mango, Potato, and Tomato.
 - **Bilingual Main Screen (Hindi / English `🌐 हिंदी / EN`):** Instant 1-tap language toggle on the main screen that translates all farmer-facing instructions, buttons (`फोटो लें`, `पुनः फोटो लें`, `फाइल से चुनें`, `पत्ती जांचें`, `अभी जांचें`), crop & disease names, Leaf Quality AI status messages, confidence bar labels, and 4-step farmer recommendations into Hindi (persisted in `kiosk_config.json`), while keeping the Admin Console and Camera Control Panel in English.
 - **Event-Driven Over-The-Air (OTA) Software Updater & Remote Internet Provisioning:** Updates **immediately on reboot/startup** (`_trigger_ota_update(silent_boot=True)` and `agrilens-ota.service`) and **immediately on manual tap** via the **`☁ OTA UPDATE (INTERNET)`** button in the Admin Console (with strict anti-downgrade guard and per-file SHA-256 verification), plus `setup_remote_ota.sh` (provisioning **Raspberry Pi Connect** and **OpenSSH**).
-- **Full-Screen Logo Screensaver (Startup & 30-Second Inactivity Camera Auto-Off):** Consolidated all logo images (`agrilens_logo.jpg` and `gundecha_logo.png`) exclusively inside the `logos/` directory (`assets/` removed). Displays `agrilens_logo.jpg` as a **full-screen screensaver over the complete screen** (never inside the camera viewport) on startup and after **30 seconds of inactivity** (automatically turning off the camera via `self.camera.close()`). Touching or clicking anywhere on the screen immediately deactivates the screensaver and wakes the camera back into **Live Mode**.
+- **Full-Screen Logo Screensaver (Startup & 3-Minute Inactivity Camera Auto-Off):** Consolidated all logo images (`agrilens_logo.jpg` and `gundecha_logo.png`) exclusively inside the `logos/` directory (`assets/` removed). Displays `agrilens_logo.jpg` as a **full-screen screensaver over the complete screen** (never inside the camera viewport) on startup and after **3 minutes of inactivity** (automatically turning off the camera via `self.camera.close()`). Touching or clicking anywhere on the screen immediately deactivates the screensaver and wakes the camera back into **Live Mode**.
 - **Live Mode vs. File Mode Dropdown (`MODE: LIVE MODE ▾` / `MODE: FILE MODE ▾`):** Top-bar dropdown selector allowing the user to switch between **Live Mode** (webcam feed) and **File Mode** (browsing the built-in `diagnosis_samples/{Apple,Mango,Potato,Tomato}` catalog) at any time—even while a camera is connected. Defaults to **Live Mode** when a camera is attached and automatically defaults to **File Mode** when no camera is connected.
 - **Interactive Manual Crop Selection Handles & Mobile Screen Optimization:** Upon capturing a leaf (`CAPTURE LEAF`) or loading an image (`PICK FROM FILE`), an adjustable 8-handle crop selection box appears on the canvas (pre-inset by 14% to exclude mobile phone bezels and fingers). Pressing **`DIAGNOSE NOW`** evaluates only the manually cropped area using a dual-stream Natural + Mobile-Screen-Restored (anti-glare, de-moiré, blue-backlight-neutralized) ensemble.
 - **Direct 1-Tap Admin Access:** Tapping **`ADMIN`** opens the Admin Console and Camera Control Panel directly (password lock disabled).

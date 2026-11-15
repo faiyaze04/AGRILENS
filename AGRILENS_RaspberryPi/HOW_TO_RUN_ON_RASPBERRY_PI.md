@@ -5,10 +5,10 @@ This folder contains all the standalone files needed to run the **AGRILENS AI Pl
 ---
 
 ## 📁 What is in this Folder:
-- `main.py` — The complete Tkinter Touch Kiosk application (`v4.9.3`, `1024x600` Waveshare Touch LCD, unified top selection bar with Bilingual Hindi/English `🌐 हिंदी / EN` Main Screen option, larger touch buttons & enhanced typography, immediate boot OTA + 1-Tap Admin `☁ OTA UPDATE` button with remote `agrilens.onnx` model OTA updates, strict anti-downgrade version guard & per-file SHA-256 logo/asset verification, full-screen logo screensaver on startup & 30s inactivity camera power-off with touch/click-to-wake, Live Mode vs. File Mode dropdown, 8-handle manual leaf cropper, and MobileNetV4 ONNX Inference).
+- `main.py` — The complete Tkinter Touch Kiosk application (`v4.9.4`, `1024x600` Waveshare Touch LCD, unified top selection bar with Bilingual Hindi/English `🌐 हिंदी / EN` Main Screen option, larger touch buttons & enhanced typography, immediate boot OTA + 1-Tap Admin `☁ OTA UPDATE` button with remote `agrilens.onnx` model OTA updates, strict anti-downgrade version guard & per-file SHA-256 logo/asset verification, full-screen logo screensaver on startup & 3-minute inactivity camera power-off with touch/click-to-wake, Live Mode vs. File Mode dropdown, 8-handle manual leaf cropper, and MobileNetV4 ONNX Inference).
 - `agrilens.onnx` — The standalone 15-epoch MobileNetV4-Conv-Small ONNX model (~10.07 MB, all weights embedded in this single file).
 - `labels.txt` — 24 crop disease & healthy classes across 4 species (`Apple`, `Mango`, `Potato`, `Tomato`).
-- `logos/` — Exclusive logo folder containing `agrilens_logo.jpg` (5s startup splash & 30s inactivity standby screen) and `gundecha_logo.png` (Gundecha Education Academy crest).
+- `logos/` — Exclusive logo folder containing `agrilens_logo.jpg` (5s startup splash & 3-minute inactivity standby screen) and `gundecha_logo.png` (Gundecha Education Academy crest).
 - `diagnosis_samples/` — 24 curated reference leaf images (`Apple/`, `Mango/`, `Potato/`, `Tomato/`) for testing in **File Mode** (`MODE: FILE MODE ▾` -> `PICK FROM FILE`), either by selecting File Mode from the top-bar dropdown or automatically when no camera is connected.
 - `kiosk_config.json` — Persistent calibration configuration (AI confidence, OOD margins, sharpness threshold, and camera ISP settings).
 - `requirements.txt` — Python package dependencies.

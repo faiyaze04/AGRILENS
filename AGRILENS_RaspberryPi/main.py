@@ -150,8 +150,8 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "4.9.3"
-BUILD_TIMESTAMP = "2026-11-15 17:12 IST"
+APP_VERSION = "4.9.4"
+BUILD_TIMESTAMP = "2026-11-15 17:35 IST"
 MODEL_SHA256 = "0b5bb7fb3916a7c1138f90cfc9abfdc130f06495a34282d474e52718b072ff80"
 OTA_REPO_RAW_BASE = "https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi"
 
@@ -190,7 +190,7 @@ def _extract_version_from_code(text_src):
 
 # Startup Splash & Inactivity Power-Save Timers
 STARTUP_LOGO_SECONDS = 5.0
-INACTIVITY_TIMEOUT_SECONDS = 30.0
+INACTIVITY_TIMEOUT_SECONDS = 180.0  # 3 minutes of inactivity before screensaver
 
 # =============================================================================
 # 2. PATH DISCOVERY & SETTINGS
@@ -2008,7 +2008,7 @@ class AgriLensApp:
                 self._wake_from_standby()
 
     def _enter_inactivity_standby(self):
-        """Triggered after 30 seconds of inactivity: activates full-screen logo screensaver and turns off camera."""
+        """Triggered after 3 minutes of inactivity: activates full-screen logo screensaver and turns off camera."""
         if self.standby_active or self.startup_splash_active:
             return
         self.standby_active = True
@@ -3864,7 +3864,7 @@ class AgriLensApp:
             self.root.after(int(1000 / PREVIEW_FPS), self._preview_loop)
             return
 
-        # 2. Check for 30-second inactivity -> activate full-screen logo screensaver and turn off camera
+        # 2. Check for 3-minute inactivity -> activate full-screen logo screensaver and turn off camera
         if (
             not self.standby_active
             and not self._waking_from_standby
