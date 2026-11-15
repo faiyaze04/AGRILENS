@@ -1,8 +1,8 @@
 {
-  "confidence_threshold": 0.5,
-  "ood_margin": 0.18,
-  "ood_logit": 1.8,
-  "sharpness_min": 35.0,
+  "confidence_threshold": 0.4,
+  "ood_margin": 0.12,
+  "ood_logit": 1.4,
+  "sharpness_min": 25.0,
   "cam_contrast": 100,
   "cam_brightness": 0,
   "cam_saturation": 100,

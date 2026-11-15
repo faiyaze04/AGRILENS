@@ -1,27 +1,34 @@
-# How to Run AGRILENS on Raspberry Pi (Thonny IDE Guide)
+# How to Run AGRILENS on Raspberry Pi 5 (Terminal & Thonny IDE Guide)
 
-This folder contains all the standalone files needed to run the **AGRILENS AI Plant Health Kiosk** on a Raspberry Pi without needing the training datasets or development notebooks.
+This folder contains all the standalone files needed to run the **AGRILENS AI Plant Health Kiosk** on a Raspberry Pi 5 (with the 7" Waveshare 1024×600 Capacitive Touch Display) without needing the training datasets or development notebooks.
 
 ---
 
 ## 📁 What is in this Folder:
-- `main.py` — The main Tkinter Kiosk application (`1024x600` Waveshare Touch LCD).
-- `agrilens.onnx` — The standalone 15-epoch MobileNetV4 ONNX model (all weights embedded in this single file).
+- `main.py` — The complete Tkinter Touch Kiosk application (`v4.8.5`, `1024x600` Waveshare Touch LCD, immediate boot OTA + 1-Tap Admin `☁ OTA UPDATE` button with strict anti-downgrade version guard & per-file SHA-256 logo/asset verification, 5s startup splash logo, 30s inactivity camera power-off & touch-to-wake, Live Mode vs. File Mode dropdown, 8-handle manual leaf cropper, and MobileNetV4 ONNX Inference).
+- `agrilens.onnx` — The standalone 15-epoch MobileNetV4-Conv-Small ONNX model (~10.07 MB, all weights embedded in this single file).
 - `labels.txt` — 24 crop disease & healthy classes across 4 species (`Apple`, `Mango`, `Potato`, `Tomato`).
-- `kiosk_config.json` — Calibration configuration (confidence, margins, sharpness, camera settings).
-- `assets/gundecha_logo.png` — Gundecha Education Academy logo.
+- `logos/` — Exclusive logo folder containing `agrilens_logo.jpg` (5s startup splash & 30s inactivity standby screen) and `gundecha_logo.png` (Gundecha Education Academy crest).
+- `diagnosis_samples/` — 24 curated reference leaf images (`Apple/`, `Mango/`, `Potato/`, `Tomato/`) for testing in **File Mode** (`MODE: FILE MODE ▾` -> `PICK FROM FILE`), either by selecting File Mode from the top-bar dropdown or automatically when no camera is connected.
+- `kiosk_config.json` — Persistent calibration configuration (AI confidence, OOD margins, sharpness threshold, and camera ISP settings).
 - `requirements.txt` — Python package dependencies.
-- `setup_rpi.sh` — One-click dependency installation script for Raspberry Pi OS.
+- `setup_rpi.sh` — One-click dependency & OTA installation script for Raspberry Pi OS (installs `python3-tk`, `python3-pil.imagetk`, `python3-opencv`, `v4l-utils`, `onnxruntime`, and runs `setup_remote_ota.sh`).
+- `setup_remote_ota.sh` — Configures **Raspberry Pi Connect** (`rpi-connect` browser remote desktop & shell over the internet), **OpenSSH**, and the **`agrilens-ota.service`** systemd boot service for immediate Over-The-Air GitHub updates on reboot.
+- `ota_update.sh` — Standalone Over-The-Air (OTA) updater script that pulls the latest files from GitHub over the internet and restarts the running kiosk automatically.
 - `test_deps.py` — Quick diagnostic script to verify all libraries in 2 seconds.
-- `run_agrilens.sh` — Quick launcher script for Raspberry Pi.
+- `run_agrilens.sh` — Quick launcher script for Raspberry Pi (`./run_agrilens.sh`).
 
 ---
 
 ## 🚀 Step 1: Copy this Folder to your Raspberry Pi
 You can transfer the entire `AGRILENS_RaspberryPi` folder to your Raspberry Pi via:
-1. **USB Pen Drive**: Plug USB drive into PC, copy `AGRILENS_RaspberryPi` onto it, then plug into Raspberry Pi and copy to `/home/pi/` (or `/home/<username>/`).
-2. **SCP / SFTP / FileZilla**: Transfer over local network to `/home/pi/AGRILENS_RaspberryPi`.
-3. **VNC File Transfer**: Drag-and-drop into Raspberry Pi desktop.
+1. **Git Clone** (directly on Raspberry Pi):
+   ```bash
+   git clone https://github.com/faiyaze04/AGRILENS.git
+   cd AGRILENS/AGRILENS_RaspberryPi
+   ```
+2. **USB Pen Drive**: Plug USB drive into PC, copy `AGRILENS_RaspberryPi` onto it, then plug into Raspberry Pi and copy to `/home/pi/` (or `/home/<username>/`).
+3. **SCP / SFTP / FileZilla / VNC**: Transfer over local network to `~/AGRILENS_RaspberryPi`.
 
 ---
 
@@ -35,10 +42,15 @@ chmod +x setup_rpi.sh run_agrilens.sh
 ./setup_rpi.sh
 ```
 
+Verify your installation in 2 seconds:
+```bash
+python3 test_deps.py
+```
+
 ### Alternatively, install manually via Terminal:
 ```bash
 sudo apt update
-sudo apt install -y python3-tk python3-pil python3-pil.imagetk python3-opencv python3-numpy python3-pip
+sudo apt install -y python3-tk python3-pil python3-pil.imagetk python3-opencv python3-numpy python3-pip v4l-utils
 # If you previously ran 'pip install pillow', uninstall it so the system Tkinter-enabled Pillow is used:
 python3 -m pip uninstall -y pillow 2>/dev/null || true
 pip3 install onnxruntime --break-system-packages
@@ -46,33 +58,84 @@ pip3 install onnxruntime --break-system-packages
 
 > [!NOTE]
 > **Pillow / ImageTk on Raspberry Pi OS**:
-> Always use `sudo apt install python3-pil python3-pil.imagetk`. Do not use `pip install pillow` on Raspberry Pi, because standard PyPI Linux wheels omit the `_imagingtk` C extension needed by Tkinter. If already installed via pip, running `python3 -m pip uninstall -y pillow` restores the working system package.
+> Always use `sudo apt install python3-pil python3-pil.imagetk`. Standard PyPI Linux wheels omit the `_imagingtk` C extension needed by Tkinter. Even if `_imagingtk` is missing, `main.py` includes a built-in pure-PNG `tk.PhotoImage` fallback wrapper so the UI will still run smoothly.
 
 ---
 
-## ▶️ Step 3: Run with Thonny
+## ▶️ Step 3: Run the Kiosk
 
+### Option A: Run with Thonny IDE
 1. Open **Thonny** on Raspberry Pi.
-2. Go to **File** → **Open...**
-3. Navigate to `AGRILENS_RaspberryPi` and select `main.py`.
-4. Click the green **Run current script** button (or press `F5`).
-5. The full-screen AGRILENS Kiosk interface will start up:
-   - It will automatically detect your USB webcam.
-   - It will load the MobileNetV4 ONNX model in `~24ms`.
-   - Touch/click **CAPTURE LEAF** then **DIAGNOSE NOW** to identify crop diseases.
+2. Go to **File** → **Open...** and select `AGRILENS_RaspberryPi/main.py`.
+3. Click the green **Run current script** button (or press `F5`).
+
+### Option B: Run from Terminal
+```bash
+cd ~/AGRILENS_RaspberryPi
+./run_agrilens.sh
+# or
+python3 main.py
+```
+
+### Automatic Boot Autostart
+On first launch on Linux/Raspberry Pi, `main.py` automatically creates `~/.config/autostart/agrilens.desktop` so the kiosk launches automatically into full-screen mode whenever the Raspberry Pi boots to the desktop.
 
 ---
 
-## 💡 Tips & Troubleshooting
+## 🎛️ Using the Kiosk, File Mode & Camera Control Panel
 
-- **Admin Mode PIN**: The admin panel PIN is `AGRILENS`. You can use it to calibrate focus sharpness, confidence thresholds, and test webcams.
+1. **Live Webcam or File Mode with Manual Leaf Cropping:**
+   - If a USB webcam is plugged in, aim a leaf inside the green alignment box and tap **`CAPTURE LEAF`**.
+   - If no webcam is plugged in, the kiosk automatically enables **File Mode**—tap **`PICK FROM FILE`** to select any sample leaf image from `diagnosis_samples/{Apple,Mango,Potato,Tomato}`.
+   - Once captured or loaded, **8 green selection handles** (corners and edges) appear on the image:
+     - **Drag any corner or edge handle** (or drag inside the box to move it) to frame the exact leaf area you want to inspect.
+     - **Double-tap / double-click** on the image to expand the selection back to the full image.
+     - Tap **`DIAGNOSE NOW`** to run AI diagnosis strictly on your cropped leaf selection.
+2. **Crop Selection (`SELECT CROP (AUTO)`):**
+   - Tap the top-left button to switch between **ALL PLANTS (AUTO - BETA)** and locking onto a specific crop (**APPLE**, **MANGO**, **POTATO**, **TOMATO**).
+3. **Admin Console, Camera Control Panel & 1-Tap OTA Update (`ADMIN`):**
+   - Tap **`ADMIN`** in the top-right corner for **direct entry** (password lock is disabled).
+   - Adjust the 4 AI diagnostic sliders (Confidence Threshold, OOD Ambiguity Margin, Neural Logit Energy Gate, Sharpness Quality Gate).
+   - Tap **`📷 CAMERA CONTROL PANEL`** to tune live camera ISP settings (Contrast, Brightness, Saturation, Sharpness, White Balance, Macro Zoom $1.0\times - 2.0\times$), toggle **Focus Peaking** (`PEAKING: ON`) with the live Focus Sharpness Bar, flip orientation (`MIRROR H`, `FLIP 180°`), or toggle USB hardware `AUTO-EXP` (with 50Hz anti-flicker via `v4l2-ctl`) and `AUTO-WB`.
+   - Tap **`☁ OTA UPDATE (INTERNET)`** to immediately download the latest software and logos from GitHub over the internet and automatically restart the kiosk.
+4. **Keyboard Shortcuts:**
+   - `Space` — Capture / Retake leaf
+   - `Escape` — Close open overlay panel (or exit kiosk from the main screen)
+
+---
+
+## 🌐 Step 4: Remote Internet Access & Over-The-Air (OTA) Updates
+
+Running `./setup_rpi.sh` (or `./setup_remote_ota.sh`) configures **three ways** to update and control your Raspberry Pi 5 over the internet from anywhere:
+
+### 1. Immediate Manual OTA Update via Admin (`ADMIN` → `☁ OTA UPDATE (INTERNET)`)
+- On the touchscreen, tap **`ADMIN`** → **`☁ OTA UPDATE (INTERNET)`**.
+- Immediately on tap, the kiosk connects directly to GitHub (`https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi/...`), verifies the remote version is not older than the installed version, downloads any updated files or logos, verifies Python syntax, and restarts the kiosk immediately.
+
+### 2. Immediate Automatic OTA Update on Reboot (`main.py` Startup + `agrilens-ota.service`)
+- Every time the Raspberry Pi reboots or `main.py` starts up, it immediately runs a non-blocking background OTA check (`_trigger_ota_update(silent_boot=True)` and `agrilens-ota.service` on boot).
+- There is **no 15-minute repeating timer**, so the kiosk is never interrupted during live demonstrations—updates happen strictly **on reboot** or **when manually triggered in Admin**.
+- To trigger an OTA update manually from any terminal/SSH session:
+  ```bash
+  cd ~/AGRILENS_RaspberryPi
+  bash ota_update.sh
+  ```
+
+### 3. Remote Desktop & Terminal Over the Internet (`Raspberry Pi Connect`)
+- `setup_remote_ota.sh` installs and enables **Raspberry Pi Connect** (`rpi-connect`), which works from anywhere over the internet (even behind mobile hotspots and NAT/CGNAT):
+  1. On the Raspberry Pi terminal, run once to link your free Raspberry Pi ID:
+     ```bash
+     rpi-connect signin
+     ```
+  2. Open the printed verification URL on your phone or PC browser and sign in.
+  3. From anywhere in the world, visit [connect.raspberrypi.com](https://connect.raspberrypi.com) to view/control the Raspberry Pi's screen or open a remote shell in your browser.
+
+---
+
+## 💡 Troubleshooting
+
 - **Webcam permission**: If the webcam doesn't open, ensure your user is in the `video` group:
   ```bash
   sudo usermod -a -G video $USER
   ```
-- **Direct Terminal Launch**:
-  ```bash
-  python3 main.py
-  # or
-  ./run_agrilens.sh
-  ```
+- **Hot-plugging a USB Webcam**: If you plug in a USB webcam after the app is already open in File Mode, go to **`ADMIN`** (`PIN: AGRILENS`) and tap **`🔍 DETECT WEBCAM`**.
