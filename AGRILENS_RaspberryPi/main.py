@@ -150,8 +150,8 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "4.8.6"
-BUILD_TIMESTAMP = "2026-11-15 14:01 IST"
+APP_VERSION = "4.9.0"
+BUILD_TIMESTAMP = "2026-11-15 14:08 IST"
 OTA_REPO_RAW_BASE = "https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi"
 
 
@@ -1581,10 +1581,11 @@ class AgriLensApp:
         self._build_password_screen()
         self._build_admin_panel()
         self._build_camera_panel()
+        self._build_screensaver_overlay()
 
-        # Load and display AGRILENS logo in the image window for 5 seconds on startup
+        # Load and display full-screen AGRILENS screensaver on startup (deactivates after 5s or on touch/click)
         self.splash_logo_img = self._load_splash_logo()
-        self._show_splash_logo_in_box(is_startup=True)
+        self._show_fullscreen_screensaver(is_startup=True)
         self._update_stats_bar()
 
         self.root.protocol("WM_DELETE_WINDOW", self.close)
@@ -1703,7 +1704,7 @@ class AgriLensApp:
 
     # ---- 1. Top Bar with Brand, Crop Filter, Admin & Gundecha Academy Logo ----
     def _load_splash_logo(self):
-        """Loads the AGRILENS splash/standby logo from the dedicated logos/ folder."""
+        """Loads the AGRILENS full-screen screensaver logo from the dedicated logos/ folder."""
         for candidate in ("agrilens_logo.jpg", "agrilens_logo.png", "agrilens_splash.jpg"):
             logo_path = find_logo_file(candidate)
             if logo_path and os.path.exists(logo_path):
@@ -1714,53 +1715,85 @@ class AgriLensApp:
                     print("Notice: splash logo load error:", e)
         return None
 
-    def _show_splash_logo_in_box(self, is_startup=True):
-        """Displays the AGRILENS logo image inside the main image box (on startup & 30s standby)."""
-        self._hide_crop_selection()
-        self.canvas.itemconfig(self.guide, state="hidden")
+    def _build_screensaver_overlay(self):
+        """Builds the full-screen AGRILENS logo screensaver overlay covering the complete screen (self.W x self.H)."""
+        self.screensaver_frame = tk.Frame(self.root, bg="#010603", width=self.W, height=self.H)
+        self.screensaver_canvas = tk.Canvas(
+            self.screensaver_frame, width=self.W, height=self.H,
+            bg="#010603", highlightthickness=0, cursor="hand2"
+        )
+        self.screensaver_canvas.pack(fill="both", expand=True)
+        self.screensaver_img_item = self.screensaver_canvas.create_image(
+            self.W // 2, self.H // 2, anchor="center"
+        )
+        self.screensaver_hint_item = self.screensaver_canvas.create_text(
+            self.W // 2, self.H - self.px(16), anchor="s",
+            fill=GREEN_ACCENT, font=self.f(10, True),
+            text="TOUCH OR CLICK ANYWHERE TO CONTINUE"
+        )
+        self.screensaver_canvas.bind("<ButtonPress-1>", self._on_screensaver_touch)
+        self.screensaver_frame.bind("<ButtonPress-1>", self._on_screensaver_touch)
+
+    def _show_fullscreen_screensaver(self, is_startup=True):
+        """Displays the AGRILENS logo as a full-screen screensaver over the complete screen (never inside the camera box)."""
+        if not hasattr(self, "screensaver_frame"):
+            return
         if self.splash_logo_img is not None:
             iw, ih = self.splash_logo_img.size
-            scale = min(self.CAM_W / max(1, iw), self.CAM_H / max(1, ih))
+            scale = min(self.W / max(1, iw), self.H / max(1, ih))
             nw = max(1, int(round(iw * scale)))
             nh = max(1, int(round(ih * scale)))
             resized = self.splash_logo_img.resize((nw, nh), RESAMPLE_LANCZOS)
-            canvas_im = Image.new("RGB", (self.CAM_W, self.CAM_H), (1, 6, 3))
-            canvas_im.paste(resized, ((self.CAM_W - nw) // 2, (self.CAM_H - nh) // 2))
-            self._photo = ImageTk.PhotoImage(canvas_im)
-            self.canvas.itemconfig(self.img_item, image=self._photo)
-            self.canvas.itemconfig(self.msg_txt, text="")
+            full_im = Image.new("RGB", (self.W, self.H), (1, 6, 3))
+            full_im.paste(resized, ((self.W - nw) // 2, (self.H - nh) // 2))
+            self._screensaver_photo = ImageTk.PhotoImage(full_im)
+            self.screensaver_canvas.itemconfig(self.screensaver_img_item, image=self._screensaver_photo)
         else:
-            self._photo = None
-            self.canvas.itemconfig(self.img_item, image="")
-            self.canvas.itemconfig(
-                self.msg_txt,
-                text="AGRILENS — AI PLANT HEALTH ANALYZER\nEXPISCOR 2026 • Gundecha Education Academy"
-            )
+            self._screensaver_photo = None
+            self.screensaver_canvas.itemconfig(self.screensaver_img_item, image="")
 
-        if is_startup:
-            self.canvas.itemconfig(self.live_badge, text=f"AGRILENS v{APP_VERSION} — STARTING IN 5s...", fill=GREEN_ACCENT)
-            self.banner_frame.config(bg=GREEN_PRIMARY)
-            self.banner.config(text=f"WELCOME TO AGRILENS v{APP_VERSION} — INITIALIZING CAMERA...", bg=GREEN_PRIMARY, fg=WHITE)
-            self.disease_lbl.config(text=f"AGRILENS v{APP_VERSION} • AI Plant Health Analyzer • EXPISCOR 2026 • Gundecha Education Academy")
-            self.quality_lbl.config(text=f"Version v{APP_VERSION} — Camera will activate in 5 seconds...", fg=GREEN_ACCENT)
-        else:
-            self.canvas.itemconfig(self.live_badge, text="STANDBY (CAMERA OFF) — TOUCH TO WAKE", fill=AMBER_WARN)
-            self.banner_frame.config(bg=GREY_BTN)
-            self.banner.config(text="STANDBY MODE (CAMERA OFF) — TOUCH SCREEN FOR LIVE MODE", bg=GREY_BTN, fg=WHITE)
-            self.disease_lbl.config(text="Inactivity standby active (camera turned off). Touch anywhere on screen to turn on camera.")
-            self.quality_lbl.config(text="Standby Mode: Camera OFF after 30s inactivity — Touch screen to resume Live Mode", fg=AMBER_WARN)
+        hint_txt = (
+            "TOUCH OR CLICK ANYWHERE TO START"
+            if is_startup else
+            "SCREENSAVER ACTIVE (CAMERA OFF)  •  TOUCH OR CLICK ANYWHERE TO WAKE"
+        )
+        self.screensaver_canvas.itemconfig(self.screensaver_hint_item, text=hint_txt)
+        self.screensaver_frame.place(x=0, y=0, width=self.W, height=self.H)
+        self.screensaver_frame.lift()
+
+    def _hide_fullscreen_screensaver(self):
+        """Hides the full-screen screensaver overlay immediately."""
+        if hasattr(self, "screensaver_frame") and self.screensaver_frame.winfo_ismapped():
+            self.screensaver_frame.place_forget()
+
+    def _on_screensaver_touch(self, event=None):
+        """Deactivates the full-screen screensaver immediately on touch or click."""
+        self.last_activity_ts = time.monotonic()
+        self._wake_guard_until = time.monotonic() + 0.35
+        if self.startup_splash_active:
+            self._finish_startup_splash()
+            return "break"
+        if self.standby_active:
+            self._wake_from_standby()
+            return "break"
+        self._hide_fullscreen_screensaver()
+        return "break"
 
     def _on_global_user_activity(self, event=None):
-        """Tracks user touch/mouse/keyboard activity and wakes camera from 30s standby on touch."""
+        """Tracks user touch/mouse/keyboard activity and deactivates full-screen screensaver on touch/click/key."""
         self.last_activity_ts = time.monotonic()
+        ev_type = str(getattr(event, "type", ""))
+        is_press = ev_type in ("4", "ButtonPress", "2", "KeyPress")
+        if self.startup_splash_active and is_press:
+            self._wake_guard_until = time.monotonic() + 0.35
+            self._finish_startup_splash()
+            return
         if self.standby_active and not self._waking_from_standby:
-            ev_type = str(getattr(event, "type", ""))
-            # Wake on any screen touch / click (ButtonPress) or key press
-            if ev_type in ("4", "ButtonPress", "2", "KeyPress") or event is not None:
+            if is_press or event is not None:
                 self._wake_from_standby()
 
     def _enter_inactivity_standby(self):
-        """Triggered after 30 seconds of inactivity: shows logo in image box and turns off camera."""
+        """Triggered after 30 seconds of inactivity: activates full-screen logo screensaver and turns off camera."""
         if self.standby_active or self.startup_splash_active:
             return
         self.standby_active = True
@@ -1771,23 +1804,21 @@ class AgriLensApp:
         self.close_overlays()
         if self.camera:
             self.camera.close()
-        self._show_splash_logo_in_box(is_startup=False)
-        self._draw_bar(0, GREY_BTN, "Standby — Touch screen to wake camera...")
-        for row, num, txt in self.step_rows:
-            num.config(bg=GREEN_PRIMARY, fg=WHITE)
-            txt.config(text="")
-            row.pack_forget()
-        self.cam_border.config(bg=CARD)
+        self._show_fullscreen_screensaver(is_startup=False)
         self._update_stats_bar()
 
     def _wake_from_standby(self):
-        """Turns on the camera and switches back to Live Mode when the user touches the screen."""
+        """Deactivates the full-screen screensaver, turns on the camera, and switches back to Live Mode."""
         if not self.standby_active or self._waking_from_standby:
+            self._hide_fullscreen_screensaver()
             return
         self.standby_active = False
         self._waking_from_standby = True
         self._wake_guard_until = time.monotonic() + 0.45
         self.last_activity_ts = time.monotonic()
+
+        # Hide full-screen screensaver immediately on touch/click
+        self._hide_fullscreen_screensaver()
 
         self.canvas.itemconfig(self.live_badge, text="TURNING ON CAMERA...", fill=GREEN_ACCENT)
         self.banner_frame.config(bg=GREEN_PRIMARY)
@@ -1884,7 +1915,7 @@ class AgriLensApp:
         # Header Title
         title_box = tk.Frame(top, bg=PANEL)
         title_box.pack(side="left", padx=px(8), fill="y")
-        lbl_brand = tk.Label(title_box, text=f"AGRILENS  v{APP_VERSION}", font=self.f(14, True), fg=WHITE, bg=PANEL, cursor="hand2")
+        lbl_brand = tk.Label(title_box, text="AGRILENS", font=self.f(14, True), fg=WHITE, bg=PANEL, cursor="hand2")
         lbl_brand.pack(anchor="w")
         ToolTip(lbl_brand, "AGRILENS Edge Vision Kiosk", f"Version: v{APP_VERSION}\nBuild: {BUILD_TIMESTAMP}\nModel: MobileNetV4 ONNX (24 Classes)", font_family=FONT)
         tk.Label(title_box, text="AI Agricultural Health Diagnostics", font=self.f(8, True), fg=GREEN_ACCENT, bg=PANEL).pack(anchor="w")
@@ -3369,6 +3400,7 @@ class AgriLensApp:
             return
         self.startup_splash_active = False
         self.last_activity_ts = time.monotonic()
+        self._hide_fullscreen_screensaver()
         # Default to LIVE mode when camera is connected; auto-default to FILE mode if not connected
         if self._has_camera():
             self.set_input_mode("LIVE", browse_on_file=False)
@@ -3379,14 +3411,12 @@ class AgriLensApp:
         if not self.running:
             return
 
-        # 1. During 5-second startup logo splash: keep logo in image box & update countdown
+        # 1. During 5-second startup full-screen screensaver: keep screensaver visible until timer or touch/click
         if self.startup_splash_active:
-            rem_sec = max(1, int(round(STARTUP_LOGO_SECONDS - (time.monotonic() - self.startup_start_ts))))
-            self.canvas.itemconfig(self.live_badge, text=f"AGRILENS v{APP_VERSION} — STARTING IN {rem_sec}s...", fill=GREEN_ACCENT)
             self.root.after(int(1000 / PREVIEW_FPS), self._preview_loop)
             return
 
-        # 2. Check for 30-second inactivity -> show logo in image box and turn off camera
+        # 2. Check for 30-second inactivity -> activate full-screen logo screensaver and turn off camera
         if (
             not self.standby_active
             and not self._waking_from_standby
