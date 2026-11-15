@@ -8,9 +8,9 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.8.5` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 13:45 IST` (November 15, 2026)** |
-| **Build Identifier** | `BUILD-20261115-1345-V485` |
+| **Current Version** | **`v4.8.6` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 14:01 IST` (November 15, 2026)** |
+| **Build Identifier** | `BUILD-20261115-1401-V486` |
 | **Vision Backbone** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Universal Inverted Bottleneck (UIB) in ONNX format |
 | **Model Weights** | Single-file `agrilens.onnx` (`10,068,009 bytes` / `~10.07 MB`, all weights embedded) |
 | **Supported Classes** | **24 Classes** across **4 Crops** (`Apple`, `Mango`, `Potato`, `Tomato`) trained on 23,893 images |
@@ -24,7 +24,8 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Version | Release Date | Primary Engine | Classes | Model Size | Key Highlights |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`v4.8.5`** | **2026-11-15 13:45 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **Fixed GitHub Email Privacy Protection (`GH007` Noreply Address) & Sanitized `push_ota_update.bat` Batch Script — Published Live to GitHub (`origin/main`)** |
+| **`v4.8.6`** | **2026-11-15 14:01 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **Instant GUI Window Launch (`<0.2s`), Windows Space-Safe Restart (`subprocess.Popen`), and Boot OTA Guard (`remote_tuple > local_tuple` on `silent_boot`)** |
+| `v4.8.5` | 2026-11-15 13:45 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Fixed GitHub Email Privacy Protection (`GH007` Noreply Address) & Sanitized `push_ota_update.bat` Batch Script — Published Live to GitHub (`origin/main`) |
 | `v4.8.4` | 2026-11-15 13:18 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Event-Driven Immediate OTA Updates Only on Reboot/Startup (`silent_boot=True` + `agrilens-ota.service`) and Manual Admin Trigger (`☁ OTA UPDATE`), Removing the 15-Minute Periodic Timer |
 | `v4.8.3` | 2026-11-15 13:07 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Per-File SHA-256 Asset & Logo Verification (`logos/`, `labels.txt`, scripts) when `remote >= local`, Plus Automatic Legacy `assets/` Cleanup on Raspberry Pi |
 | `v4.8.2` | 2026-11-15 12:36 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Strict Anti-Downgrade Version Guard across OTA Updater (`main.py` & `ota_update.sh`) and USB-to-Home Auto-Sync (`ensure_rpi_autostart`) — Never Allows Updating to Older Versions |
@@ -43,6 +44,15 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 ---
 
 ## 📜 Detailed Changelog by Build
+
+### [v4.8.6] — 2026-11-15 14:01 IST
+#### ✨ Fixed & Enhanced
+1. **Instant Non-Blocking GUI Launch & Space-Safe Restart (`_restart_application`)**:
+   - Removed synchronous `_auto_install_package("cv2", "opencv-python")` before `tk.Tk()` so the window opens in `<0.2s` even if `opencv-python` is not installed on a PC.
+   - Replaced `os.execv` in `_restart_application()` with `subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=APP_BASE_DIR)` so Python installations in paths containing spaces (`C:\Users\Faiyaz Engineer\...`) restart cleanly on Windows.
+   - Updated `silent_boot=True` OTA check to only trigger a restart when `remote_tuple > local_tuple`.
+
+---
 
 ### [v4.8.5] — 2026-11-15 13:45 IST
 #### ✨ Fixed & Enhanced

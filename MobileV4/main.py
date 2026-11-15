@@ -114,11 +114,7 @@ except ImportError:
 try:
     import cv2
 except ImportError:
-    _auto_install_package("cv2", "opencv-python")
-    try:
-        import cv2
-    except ImportError:
-        cv2 = None
+    cv2 = None
 
 # =============================================================================
 # 1. COLOR THEME (Dark Theme with Green, White & Red Accents)
@@ -154,8 +150,8 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "4.8.5"
-BUILD_TIMESTAMP = "2026-11-15 13:45 IST"
+APP_VERSION = "4.8.6"
+BUILD_TIMESTAMP = "2026-11-15 14:01 IST"
 OTA_REPO_RAW_BASE = "https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi"
 
 
@@ -3200,6 +3196,12 @@ class AgriLensApp:
                                 f"Downgrade blocked: Local v{APP_VERSION} is newer than remote v{remote_ver}."
                             ))
                             return
+                        if silent_boot and remote_tuple == local_tuple:
+                            q.put((
+                                "up_to_date",
+                                f"Up to date! Running latest version (v{APP_VERSION})."
+                            ))
+                            return
 
                     new_hash = hashlib.sha256(data).hexdigest()
                     old_hash = ""
@@ -3281,7 +3283,8 @@ class AgriLensApp:
             self.root.destroy()
         except Exception:
             pass
-        os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)])
+        subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=APP_BASE_DIR)
+        sys.exit(0)
 
     def _has_camera(self):
         return bool(self.camera and self.camera.kind != "none")
