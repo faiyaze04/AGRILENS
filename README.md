@@ -1,7 +1,7 @@
 # AGRILENS — AI Plant Health & Disease Diagnosis Kiosk
 
-[![Version](https://img.shields.io/badge/version-v4.9.0-16a34a.svg)](Documentation_and_References/REVISION.md)
-[![Build](https://img.shields.io/badge/build-2026--11--15%2014%3A08%20IST-0ea5e9.svg)](Documentation_and_References/REVISION.md)
+[![Version](https://img.shields.io/badge/version-v4.9.1-16a34a.svg)](Documentation_and_References/REVISION.md)
+[![Build](https://img.shields.io/badge/build-2026--11--15%2014%3A27%20IST-0ea5e9.svg)](Documentation_and_References/REVISION.md)
 [![Model](https://img.shields.io/badge/backbone-MobileNetV4--Conv--Small%20ONNX-22c55e.svg)](MobileV4/agrilens.onnx)
 [![Classes](https://img.shields.io/badge/classes-24%20Classes%20(4%20Crops)-f59e0b.svg)](MobileV4/labels.txt)
 [![Partner](https://img.shields.io/badge/partner-Gundecha%20Education%20Academy-dc2626.svg)](https://www.gundechaedu.org/)
@@ -14,8 +14,8 @@
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.9.0` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 14:08 IST` (November 15, 2026)** |
+| **Current Version** | **`v4.9.1` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 14:27 IST` (November 15, 2026)** |
 | **Vision Model** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Single-File ONNX (~10.07 MB) |
 | **Training Dataset** | 23,893 images across 24 classes (15 Epochs, 97.28% – 98.31% Val Accuracy) |
 | **Inference Latency** | ~24–40 ms on CPU (3-view training-aligned ensemble on Raspberry Pi 5 / PC) |

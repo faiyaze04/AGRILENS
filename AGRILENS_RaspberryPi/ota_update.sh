@@ -53,12 +53,17 @@ def parse_ver(v_str):
     nums = re.findall(r"\d+", str(v_str or ""))
     return tuple(int(x) for x in nums[:4]) if nums else (0, 0, 0)
 
-def extract_ver(text_src):
+def extract_const(text_src, name):
     for line in str(text_src or "").splitlines():
         s = line.strip()
-        if s.startswith("APP_VERSION") and "=" in s:
-            return s.split("=", 1)[1].strip().strip('"').strip("'")
-    return "0.0.0"
+        if s.startswith(name) and "=" in s:
+            lhs, rhs = s.split("=", 1)
+            if lhs.strip() == name:
+                return rhs.split("#", 1)[0].strip().strip('"').strip("'")
+    return ""
+
+def extract_ver(text_src):
+    return extract_const(text_src, "APP_VERSION") or "0.0.0"
 
 local_ver = "0.0.0"
 local_main = os.path.join(app_dir, "main.py")
@@ -91,12 +96,41 @@ for rel in files:
         continue
 
     if rel == "main.py":
-        remote_ver = extract_ver(data.decode("utf-8", errors="replace"))
+        text_src = data.decode("utf-8", errors="replace")
+        remote_ver = extract_ver(text_src)
+        remote_model_sha = extract_const(text_src, "MODEL_SHA256").lower()
         remote_tuple = parse_ver(remote_ver)
         # Strict Anti-Downgrade Protection: NEVER allow downgrading to an older version
         if remote_tuple < local_tuple:
             print(f"[AGRILENS OTA] Downgrade blocked: Local v{local_ver} is newer than remote v{remote_ver}.")
             sys.exit(0)
+
+        # Check if trained ONNX model (agrilens.onnx) changed on GitHub via MODEL_SHA256
+        model_dest = os.path.join(app_dir, "agrilens.onnx")
+        local_model_sha = ""
+        if os.path.exists(model_dest):
+            try:
+                with open(model_dest, "rb") as f_m:
+                    local_model_sha = hashlib.sha256(f_m.read()).hexdigest().lower()
+            except Exception:
+                local_model_sha = ""
+        if not os.path.exists(model_dest) or (remote_model_sha and local_model_sha != remote_model_sha):
+            print("[AGRILENS OTA] New trained AI model (agrilens.onnx) detected on GitHub! Downloading (~10.07 MB)...")
+            m_req = urllib.request.Request(
+                f"{raw_base}/agrilens.onnx?t={ts}",
+                headers={"User-Agent": "AGRILENS-RPi-OTA", "Cache-Control": "no-cache"}
+            )
+            with urllib.request.urlopen(m_req, timeout=60) as m_resp:
+                m_data = m_resp.read()
+            if m_data and len(m_data) > 1000000:
+                dl_sha = hashlib.sha256(m_data).hexdigest().lower()
+                if not remote_model_sha or dl_sha == remote_model_sha:
+                    m_tmp = model_dest + ".ota_tmp"
+                    with open(m_tmp, "wb") as f_mout:
+                        f_mout.write(m_data)
+                    os.replace(m_tmp, model_dest)
+                    print("[AGRILENS OTA] Updated trained model: agrilens.onnx")
+                    updated += 1
 
     new_hash = hashlib.sha256(data).hexdigest()
     old_hash = ""

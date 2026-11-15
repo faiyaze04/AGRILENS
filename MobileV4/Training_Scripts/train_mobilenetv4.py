@@ -306,6 +306,16 @@ def main():
             shutil.copy2(onnx_dest, rpi_dir / "agrilens.onnx")
             shutil.copy2(labels_path, rpi_dir / "labels.txt")
             print(f"Synced agrilens.onnx & labels.txt -> {rpi_dir}")
+        # Update MODEL_SHA256 in main.py so OTA automatically pulls the newly trained model
+        import hashlib
+        import re
+        new_sha = hashlib.sha256(onnx_dest.read_bytes()).hexdigest().lower()
+        for main_py in (output_dir / "main.py", rpi_dir / "main.py"):
+            if main_py.exists():
+                src = main_py.read_text(encoding="utf-8")
+                src = re.sub(r'MODEL_SHA256\s*=\s*"[^"]*"', f'MODEL_SHA256 = "{new_sha}"', src)
+                main_py.write_text(src, encoding="utf-8")
+        print(f"Updated MODEL_SHA256 = {new_sha} in main.py for remote OTA model updates.")
 
 
 if __name__ == "__main__":

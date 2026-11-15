@@ -150,8 +150,9 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "4.9.0"
-BUILD_TIMESTAMP = "2026-11-15 14:08 IST"
+APP_VERSION = "4.9.1"
+BUILD_TIMESTAMP = "2026-11-15 14:27 IST"
+MODEL_SHA256 = "0b5bb7fb3916a7c1138f90cfc9abfdc130f06495a34282d474e52718b072ff80"
 OTA_REPO_RAW_BASE = "https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi"
 
 
@@ -170,15 +171,22 @@ def _parse_version_tuple(v_str):
         return (0, 0, 0)
 
 
-def _extract_version_from_code(text_src):
-    """Extracts APP_VERSION = 'X.Y.Z' from a main.py source string."""
+def _extract_const_from_code(text_src, const_name):
+    """Extracts a top-level string constant (e.g. APP_VERSION or MODEL_SHA256) from main.py source."""
     for line in str(text_src or "").splitlines():
         s = line.strip()
-        if s.startswith("APP_VERSION") and "=" in s:
-            rhs = s.split("=", 1)[1].split("#", 1)[0].strip().strip('"').strip("'")
-            if rhs:
-                return rhs
-    return "0.0.0"
+        if s.startswith(const_name) and "=" in s:
+            lhs, rhs = s.split("=", 1)
+            if lhs.strip() == const_name:
+                val = rhs.split("#", 1)[0].strip().strip('"').strip("'")
+                if val:
+                    return val
+    return ""
+
+
+def _extract_version_from_code(text_src):
+    """Extracts APP_VERSION = 'X.Y.Z' from a main.py source string."""
+    return _extract_const_from_code(text_src, "APP_VERSION") or "0.0.0"
 
 # Startup Splash & Inactivity Power-Save Timers
 STARTUP_LOGO_SECONDS = 5.0
@@ -3219,6 +3227,7 @@ class AgriLensApp:
                     if rel_url == "main.py":
                         text_src = data.decode("utf-8", errors="replace")
                         remote_ver = _extract_version_from_code(text_src)
+                        remote_model_sha = _extract_const_from_code(text_src, "MODEL_SHA256").lower()
                         local_tuple = _parse_version_tuple(APP_VERSION)
                         remote_tuple = _parse_version_tuple(remote_ver)
                         if remote_tuple < local_tuple:
@@ -3233,6 +3242,35 @@ class AgriLensApp:
                                 f"Up to date! Running latest version (v{APP_VERSION})."
                             ))
                             return
+
+                        # Check if trained ONNX model (agrilens.onnx) changed on GitHub via MODEL_SHA256
+                        model_dest = os.path.join(APP_BASE_DIR, "agrilens.onnx")
+                        local_model_sha = ""
+                        if os.path.exists(model_dest):
+                            try:
+                                with open(model_dest, "rb") as f_m:
+                                    local_model_sha = hashlib.sha256(f_m.read()).hexdigest().lower()
+                            except Exception:
+                                local_model_sha = ""
+                        if not os.path.exists(model_dest) or (remote_model_sha and local_model_sha != remote_model_sha):
+                            model_url = f"{OTA_REPO_RAW_BASE}/agrilens.onnx?t={ts}"
+                            m_req = urllib.request.Request(
+                                model_url,
+                                headers={
+                                    "User-Agent": f"AGRILENS-Kiosk/{APP_VERSION}",
+                                    "Cache-Control": "no-cache",
+                                }
+                            )
+                            with urllib.request.urlopen(m_req, timeout=60) as m_resp:
+                                m_data = m_resp.read()
+                            if m_data and len(m_data) > 1_000_000:
+                                dl_sha = hashlib.sha256(m_data).hexdigest().lower()
+                                if not remote_model_sha or dl_sha == remote_model_sha:
+                                    m_tmp = model_dest + ".ota_tmp"
+                                    with open(m_tmp, "wb") as f_mout:
+                                        f_mout.write(m_data)
+                                    os.replace(m_tmp, model_dest)
+                                    updated_count += 1
 
                     new_hash = hashlib.sha256(data).hexdigest()
                     old_hash = ""
