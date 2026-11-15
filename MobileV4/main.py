@@ -2206,7 +2206,7 @@ class AgriLensApp:
 
         # Bottom Hardware / Latency Strip
         self.stats_lbl = tk.Label(
-            right, text=f"v{APP_VERSION}", font=self.f(8), fg=MUTED, bg=PANEL,
+            right, text=f"AGRILENS v{APP_VERSION}", font=self.f(8), fg=MUTED, bg=PANEL,
             anchor="w", justify="left", wraplength=wrap
         )
         self.stats_lbl.pack(side="bottom", fill="x", padx=rp, pady=(0, px(4)))
@@ -4078,7 +4078,7 @@ class AgriLensApp:
             cam = self.camera.kind if self.camera else "none"
             in_mode = "LIVE" if self._is_live_mode() else "FILE"
         py_ver = f"Py {platform.python_version()}"
-        self.stats_lbl.config(text=f"v{APP_VERSION} | Input: {in_mode} | AI: {mode_text} | Latency: {lat} | Camera: {cam} | {py_ver}")
+        self.stats_lbl.config(text=f"AGRILENS v{APP_VERSION} | Input: {in_mode} | AI: {mode_text} | Latency: {lat} | Camera: {cam} | {py_ver}")
 
     def close(self):
         self.running = False

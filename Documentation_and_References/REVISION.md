@@ -8,9 +8,9 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.8.6` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 14:01 IST` (November 15, 2026)** |
-| **Build Identifier** | `BUILD-20261115-1401-V486` |
+| **Current Version** | **`v4.9.0` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 14:08 IST` (November 15, 2026)** |
+| **Build Identifier** | `BUILD-20261115-1408-V490` |
 | **Vision Backbone** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Universal Inverted Bottleneck (UIB) in ONNX format |
 | **Model Weights** | Single-file `agrilens.onnx` (`10,068,009 bytes` / `~10.07 MB`, all weights embedded) |
 | **Supported Classes** | **24 Classes** across **4 Crops** (`Apple`, `Mango`, `Potato`, `Tomato`) trained on 23,893 images |
@@ -24,7 +24,8 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 
 | Version | Release Date | Primary Engine | Classes | Model Size | Key Highlights |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`v4.8.6`** | **2026-11-15 14:01 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **Instant GUI Window Launch (`<0.2s`), Windows Space-Safe Restart (`subprocess.Popen`), and Boot OTA Guard (`remote_tuple > local_tuple` on `silent_boot`)** |
+| **`v4.9.0`** | **2026-11-15 14:08 IST** | **MobileNetV4 ONNX** | **24 Classes** | **~10.07 MB** | **Full-Screen Logo Screensaver Overlay (Deactivated on Touch/Click), Clean `AGRILENS` Top Title, and Version Display in Bottom Status Bar (`AGRILENS v4.9.0`)** |
+| `v4.8.6` | 2026-11-15 14:01 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Instant GUI Window Launch (`<0.2s`), Windows Space-Safe Restart (`subprocess.Popen`), and Boot OTA Guard (`remote_tuple > local_tuple` on `silent_boot`) |
 | `v4.8.5` | 2026-11-15 13:45 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Fixed GitHub Email Privacy Protection (`GH007` Noreply Address) & Sanitized `push_ota_update.bat` Batch Script — Published Live to GitHub (`origin/main`) |
 | `v4.8.4` | 2026-11-15 13:18 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Event-Driven Immediate OTA Updates Only on Reboot/Startup (`silent_boot=True` + `agrilens-ota.service`) and Manual Admin Trigger (`☁ OTA UPDATE`), Removing the 15-Minute Periodic Timer |
 | `v4.8.3` | 2026-11-15 13:07 IST | MobileNetV4 ONNX | 24 Classes | ~10.07 MB | Per-File SHA-256 Asset & Logo Verification (`logos/`, `labels.txt`, scripts) when `remote >= local`, Plus Automatic Legacy `assets/` Cleanup on Raspberry Pi |
@@ -44,6 +45,17 @@ This document provides a comprehensive build log and changelog for the **AGRILEN
 ---
 
 ## 📜 Detailed Changelog by Build
+
+### [v4.9.0] — 2026-11-15 14:08 IST
+#### ✨ Added & Enhanced
+1. **Full-Screen AGRILENS Logo Screensaver Overlay (`_build_screensaver_overlay` & `_show_fullscreen_screensaver`)**:
+   - Removed the AGRILENS logo from inside the Camera viewport (`self.canvas`) and replaced it with a **full-screen screensaver overlay** (`self.screensaver_frame`, `self.W × self.H`) covering the entire screen.
+   - Displays on startup (5s or deactivated immediately on touch/click) and after 30 seconds of inactivity (`INACTIVITY_TIMEOUT_SECONDS = 30.0`, turning off the camera).
+   - Touching or clicking anywhere on the screen immediately deactivates the full-screen screensaver and wakes the camera into Live Mode.
+2. **Clean Main Page Title & Version in Bottom Status Text**:
+   - Restored the top-bar brand title to `AGRILENS` (without the version number) and placed `AGRILENS v4.9.0` in the bottom status text (`self.stats_lbl`).
+
+---
 
 ### [v4.8.6] — 2026-11-15 14:01 IST
 #### ✨ Fixed & Enhanced

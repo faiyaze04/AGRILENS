@@ -1,7 +1,7 @@
 # AGRILENS — AI Plant Health & Disease Diagnosis Kiosk
 
-[![Version](https://img.shields.io/badge/version-v4.8.6-16a34a.svg)](Documentation_and_References/REVISION.md)
-[![Build](https://img.shields.io/badge/build-2026--11--15%2014%3A01%20IST-0ea5e9.svg)](Documentation_and_References/REVISION.md)
+[![Version](https://img.shields.io/badge/version-v4.9.0-16a34a.svg)](Documentation_and_References/REVISION.md)
+[![Build](https://img.shields.io/badge/build-2026--11--15%2014%3A08%20IST-0ea5e9.svg)](Documentation_and_References/REVISION.md)
 [![Model](https://img.shields.io/badge/backbone-MobileNetV4--Conv--Small%20ONNX-22c55e.svg)](MobileV4/agrilens.onnx)
 [![Classes](https://img.shields.io/badge/classes-24%20Classes%20(4%20Crops)-f59e0b.svg)](MobileV4/labels.txt)
 [![Partner](https://img.shields.io/badge/partner-Gundecha%20Education%20Academy-dc2626.svg)](https://www.gundechaedu.org/)
@@ -14,8 +14,8 @@
 
 | Attribute | Specification |
 | :--- | :--- |
-| **Current Version** | **`v4.8.6` (Production Release)** |
-| **Last Build Date** | **`2026-11-15 14:01 IST` (November 15, 2026)** |
+| **Current Version** | **`v4.9.0` (Production Release)** |
+| **Last Build Date** | **`2026-11-15 14:08 IST` (November 15, 2026)** |
 | **Vision Model** | MobileNetV4-Conv-Small (`mobilenetv4_conv_small`) Single-File ONNX (~10.07 MB) |
 | **Training Dataset** | 23,893 images across 24 classes (15 Epochs, 97.28% – 98.31% Val Accuracy) |
 | **Inference Latency** | ~24–40 ms on CPU (3-view training-aligned ensemble on Raspberry Pi 5 / PC) |
@@ -33,7 +33,7 @@
 - **Interactive Manual Crop Selection Handles & Mobile Screen Optimization:** Upon capturing a leaf (`CAPTURE LEAF`) or loading an image (`PICK FROM FILE`), an adjustable 8-handle crop selection box appears on the image (pre-inset by 14% to exclude mobile phone bezels and fingers). Pressing **`DIAGNOSE NOW`** runs a dual-stream MobileNetV4 ensemble (Natural RGB + Mobile-Screen De-Moiré / Anti-Glare / Blue-Backlight-Neutralized RGB) strictly on the cropped selection.
 - **Direct 1-Tap Admin & Camera Control Panel:** Tapping **`ADMIN`** opens the Admin Console directly (password lock disabled for quick access).
 - **Over-The-Air (OTA) Software Updater & Remote Internet Connectivity:** Triggers **immediately on reboot/startup** (`_trigger_ota_update(silent_boot=True)` and `agrilens-ota.service`) and **immediately on manual tap** via the **`☁ OTA UPDATE (INTERNET)`** button in the Admin Console (with strict anti-downgrade version protection and per-file SHA-256 verification). Also includes automated Raspberry Pi remote provisioning (`setup_remote_ota.sh` configuring **Raspberry Pi Connect** and **SSH**).
-- **5-Second Startup Splash Logo & 30-Second Inactivity Standby (Camera Auto-Off / Touch-to-Wake):** Loads all branding graphics exclusively from the dedicated `logos/` folder (`logos/agrilens_logo.jpg` and `logos/gundecha_logo.png`). Displays the official **AGRILENS EXPISCOR 2026** logo in the main image window for **5 seconds** on startup, and after **30 seconds of inactivity** automatically displays the logo and turns off the USB camera. Touching anywhere on the screen turns the camera back on and resumes **Live Mode**.
+- **Full-Screen Logo Screensaver (Startup & 30-Second Inactivity Camera Auto-Off / Touch-to-Wake):** Loads all branding graphics exclusively from the dedicated `logos/` folder (`logos/agrilens_logo.jpg` and `logos/gundecha_logo.png`). Displays the official **AGRILENS EXPISCOR 2026** logo as a **full-screen screensaver covering the entire screen** (never inside the camera viewport) on startup (5s or deactivated on touch/click) and after **30 seconds of inactivity** (turning off the USB camera). Touching or clicking anywhere on the screen immediately deactivates the screensaver, turns the camera back on, and resumes **Live Mode**.
 - **Live Mode vs. File Mode Dropdown (`MODE: LIVE MODE ▾` / `MODE: FILE MODE ▾`):** Top-bar dropdown selector allowing instant switching between **Live Mode** (webcam feed) and **File Mode** (browsing default sample images in `diagnosis_samples/{Apple,Mango,Potato,Tomato}`). Defaults to **Live Mode** when a camera is connected, and automatically defaults to **File Mode** when no camera is connected.
 - **Full-FoV 4:3 Camera Viewport:** Displays 100% of the 640×480 webcam field of view without cropping on the 1024×600 touch display.
 - **Camera Control Panel & Real-Time ISP Pipeline:** Accessible from the Admin Console (`📷 CAMERA CONTROL PANEL`):
