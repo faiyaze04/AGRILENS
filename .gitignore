@@ -32,3 +32,11 @@ desktop.ini
 *.ini
 .vscode/
 .idea/
+
+# Test, build and field-validation artefacts (added in Phase A)
+.pytest_cache/
+.ruff_cache/
+dist/
+field_validation/
+training/datasets/
+*.bak

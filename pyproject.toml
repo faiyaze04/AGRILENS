@@ -1,0 +1,15 @@
+# Tooling configuration only. AGRILENS is not packaged with this file.
+# (pytest.ini would be ignored by git because .gitignore excludes *.ini.)
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider -q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 160
+extend-exclude = ["AGRILENS_RaspberryPi", "MobileV4", "Documentation_and_References", ".venv"]
+
+[tool.ruff.lint]
+# Correctness-focused rules only (pyflakes, pycodestyle errors/warnings, bugbear). Style rules are not enforced.
+select = ["E", "F", "W", "B"]
+ignore = ["B011", "B905", "B007", "E731", "E501"]
