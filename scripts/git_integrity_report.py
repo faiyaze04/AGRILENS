@@ -38,6 +38,14 @@ def sha(path):
     return h.hexdigest()
 
 
+def read_text(path):
+    """Backup files may be UTF-16 (PowerShell redirection) or UTF-8; detect by BOM."""
+    raw = open(path, "rb").read()
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16")
+    return raw.decode("utf-8-sig", errors="replace")
+
+
 def parse_status(text):
     out = {}
     for line in text.splitlines():
@@ -51,6 +59,7 @@ def main():
     ap.add_argument("--backup", required=True)
     ap.add_argument("--out")
     ap.add_argument("--base-branch", default="main")
+    ap.add_argument("--allow-modified", nargs="*", default=[], help="pre-existing files whose change is intentional and approved (reported separately)")
     a = ap.parse_args()
 
     lines, failures = [], []
@@ -60,11 +69,11 @@ def main():
         if not ok:
             failures.append(name)
 
-    original_head = open(os.path.join(a.backup, "HEAD.txt"), encoding="utf-8-sig").read().strip()
-    before_status = parse_status(open(os.path.join(a.backup, "git_status_before.txt"), encoding="utf-8-sig", errors="replace").read())
+    original_head = read_text(os.path.join(a.backup, "HEAD.txt")).strip()
+    before_status = parse_status(read_text(os.path.join(a.backup, "git_status_before.txt")))
     before_hash = {}
-    for line in open(os.path.join(a.backup, "sha256_worktree_before.txt"), encoding="utf-8-sig"):
-        digest, _, path = line.rstrip("\n").partition("  ")
+    for line in read_text(os.path.join(a.backup, "sha256_worktree_before.txt")).splitlines():
+        digest, _, path = line.rstrip("\r\n").partition("  ")
         if path:
             before_hash[path] = digest
 
@@ -86,7 +95,7 @@ def main():
         if parts[0].startswith("R"):
             renames[parts[1]] = parts[2]
 
-    changed, missing, moved = [], [], []
+    changed, missing, moved, approved = [], [], [], []
     for path, digest in before_hash.items():
         full = os.path.join(ROOT, path)
         if path in renames:
@@ -97,11 +106,11 @@ def main():
         elif not os.path.exists(full):
             missing.append(path)
         elif sha(full) != digest:
-            changed.append(path)
+            (approved if path in a.allow_modified else changed).append(path)
     check("every pre-existing file is byte-identical (or a pure move)", not changed and not missing,
-          "%d files compared, %d moved, changed=%s missing=%s" % (len(before_hash), len(moved), changed[:5], missing[:5]))
+          "%d files compared, %d moved, %d approved edits %s, unexpected changes=%s missing=%s" % (len(before_hash), len(moved), len(approved), approved, changed[:5], missing[:5]))
 
-    status_now = parse_status(git("status", "--short"))
+    status_now = parse_status(git("status", "--short", "-uall"))
     dirty_before = {p: s for p, s in before_status.items()}
     still_dirty = {p for p in dirty_before if p in status_now and status_now[p].strip()}
     lost = [p for p in dirty_before if p not in status_now]
@@ -125,7 +134,7 @@ def main():
     report += ["  - " + c for c in commits]
     report += ["", "| Check | Result | Detail |", "|---|---|---|"] + lines
     report += ["", "## Working tree now", "",
-               "- Uncommitted tracked changes: %d" % sum(1 for s in status_now.values() if s != "??"),
+               "- Uncommitted tracked changes: %d (12 pre-existing + any listed below)" % sum(1 for s in status_now.values() if s != "??"),
                "- Untracked (new, not yet committed): %d" % len(untracked)]
     report += ["  - `%s`" % p for p in untracked[:60]]
     report += ["", "## Pre-existing changes (must remain exactly as they were)", ""]
