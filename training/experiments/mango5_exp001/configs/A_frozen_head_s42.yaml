@@ -1,0 +1,67 @@
+run_id: A_frozen_head_s42
+mode: A_frozen_head
+seed: 42
+experiment: mango5-exp001
+authorisation:
+  training_authorised: true
+  authorised_by: user
+  authorised_on: '2026-11-17'
+  scope: controlled five-class experimental training; no production change, no deployment
+dataset:
+  id: AGL-MANGO-MD
+  version: v1.1.0-rc1
+  root: D:\AGRILENS_Training\AGL-MANGO-MD\AGL-MANGO-MD-v1.1.0-rc1
+model:
+  name: mobilenetv4_conv_small.e2400_r224_in1k
+  pretrained: ImageNet (timm)
+  num_classes: 5
+  classes:
+  - MNG001_ANTHRACNOSE
+  - MNG002_BACTERIAL_CANKER
+  - MNG005_GALL_MIDGE (provisional)
+  - MNG006_HEALTHY
+  - MNG007_POWDERY_MILDEW
+data:
+  train_manifest: splits/train.csv
+  val_manifest: splits/val.csv
+input:
+  resize: 'shorter side 256 (cached once), eval: centre crop 224; train: random-resized
+    crop 224'
+  normalise: ImageNet mean/std
+sampling:
+  unit: class uniform -> leaf group uniform -> image uniform
+  samples_per_epoch: 4000
+augmentation:
+  rotation_degrees: 30
+  crop_scale:
+  - 0.6
+  - 1.0
+  colour_jitter:
+    brightness: 0.25
+    contrast: 0.25
+    saturation: 0.25
+    hue: 0.02
+  blur_p: 0.2
+  jpeg_p: 0.3
+  jpeg_quality:
+  - 60
+  - 95
+  flips: horizontal and vertical
+optim:
+  optimiser: AdamW
+  weight_decay: 0.01
+  label_smoothing: 0.06
+  batch_size: 32
+  schedule: 1 epoch warm-up, cosine to 0 over epochs_max
+  lr_head: 0.001
+  lr_backbone: 0.0
+  epochs_max: 30
+  patience: 6
+compute:
+  torch_threads: 10
+  workers: 8
+selection:
+  monitor: 'val_macro_f1 (ties: lower val_loss)'
+  test_tiers_used: false
+trainable: classifier only (6,405 parameters); backbone, conv_head and norm_head frozen,
+  BatchNorm in eval mode

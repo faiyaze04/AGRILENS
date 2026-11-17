@@ -1,4 +1,4 @@
-# Python Bytecode & Cache
+﻿# Python Bytecode & Cache
 __pycache__/
 *.py[cod]
 *$py.class
@@ -9,8 +9,14 @@ __pycache__/
 *.tar
 *.tar.gz
 *.rar
-MobileV4/datasets/
-datasets/
+# Dataset images, caches and checkpoints live outside the repository (see datasets/master/AGL-MULTICROP-MD/README.md)
+datasets/master/**/images/
+datasets/master/**/quarantine/
+datasets/master/**/supplementary/
+*.npy
+*.pt
+*.pth
+training/checkpoints/
 plant village data set old/
 PlantVillage/
 *.pdf

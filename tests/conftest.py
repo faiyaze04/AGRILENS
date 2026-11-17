@@ -1,6 +1,6 @@
 """
 Shared fixtures. The tests exercise the application file selected by AGRILENS_APP_PATH
-(default: the frozen legacy AGRILENS_RaspberryPi/main.py) and never modify it.
+(default: the generated device package AGRILENS_RaspberryPi/main.py, i.e. exactly what is published) and never modify it.
 
 Environment variables (all optional):
   AGRILENS_APP_PATH      path to the application file under test
@@ -13,11 +13,11 @@ import pytest
 
 sys.dont_write_bytecode = True
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "tools", "validation"))
 
 import app_harness as H  # noqa: E402
 
-BASELINE_DIR = os.path.join(ROOT, "tests", "baseline")
+BASELINE_DIR = os.path.join(ROOT, "tests", "regression", "baseline")  # production 4.9.4 baselines (config precedence, goldens of the 4.9.4 model)
 
 
 @pytest.fixture(scope="session")
@@ -51,7 +51,16 @@ def samples():
 
 
 @pytest.fixture(scope="session")
-def golden():
+def golden(app):
+    """Golden predictions for the model under test, selected by model SHA-256 (goldens are model-specific).
+    Missing goldens for the model under test are a FAILURE, never a silent skip."""
+    import glob
     import json
-    with open(os.path.join(BASELINE_DIR, "golden_predictions.json"), encoding="utf-8") as f:
-        return json.load(f)
+    found = {}
+    for p in glob.glob(os.path.join(ROOT, "tests", "regression", "baseline*", "golden_predictions.json")):
+        with open(p, encoding="utf-8") as f:
+            g = json.load(f)
+        found[str(g.get("model_sha256", "")).lower()] = g
+    sha = str(app.MODEL_SHA256).lower()
+    assert sha in found, "no golden predictions for model %s (have: %s)" % (sha, sorted(found))
+    return found[sha]

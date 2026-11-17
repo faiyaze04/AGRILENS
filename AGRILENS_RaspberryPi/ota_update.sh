@@ -25,6 +25,9 @@ import urllib.request
 
 app_dir = sys.argv[1]
 force = (len(sys.argv) > 2 and sys.argv[2] == "--force")
+if os.path.exists(os.path.expanduser("~/.agrilens_ota_hold")) and not force:
+    print("[AGRILENS OTA] On hold (~/.agrilens_ota_hold present, set by rollback.sh). Use --force or remove the file.")
+    sys.exit(0)
 raw_base = "https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi"
 
 files = [
@@ -37,6 +40,7 @@ files = [
     "run_agrilens.sh",
     "ota_update.sh",
     "setup_remote_ota.sh",
+    "rollback.sh",
 ]
 
 os.makedirs(os.path.join(app_dir, "logos"), exist_ok=True)
@@ -74,6 +78,19 @@ if os.path.exists(local_main):
     except Exception:
         local_ver = "0.0.0"
 local_tuple = parse_ver(local_ver)
+rollback_dir = os.path.join(app_dir, "rollback", f"v{local_ver}")
+
+def backup_for_rollback(path):
+    """Keeps a copy of the running version's file before it is replaced (first copy wins)."""
+    try:
+        if os.path.exists(path):
+            import shutil
+            dst = os.path.join(rollback_dir, os.path.relpath(path, app_dir))
+            if not os.path.exists(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(path, dst)
+    except Exception:
+        pass
 
 print(f"[AGRILENS OTA] Local version: v{local_ver}. Connecting to GitHub over internet...")
 for rel in files:
@@ -96,6 +113,17 @@ for rel in files:
         continue
 
     if rel == "main.py":
+        # compile the downloaded main.py BEFORE the model (or anything else) is replaced
+        chk = os.path.join(app_dir, "main.py.ota_check")
+        with open(chk, "wb") as f_chk:
+            f_chk.write(data)
+        try:
+            py_compile.compile(chk, doraise=True)
+        finally:
+            try:
+                os.remove(chk)
+            except Exception:
+                pass
         text_src = data.decode("utf-8", errors="replace")
         remote_ver = extract_ver(text_src)
         remote_model_sha = extract_const(text_src, "MODEL_SHA256").lower()
@@ -128,6 +156,7 @@ for rel in files:
                     m_tmp = model_dest + ".ota_tmp"
                     with open(m_tmp, "wb") as f_mout:
                         f_mout.write(m_data)
+                    backup_for_rollback(model_dest)
                     os.replace(m_tmp, model_dest)
                     print("[AGRILENS OTA] Updated trained model: agrilens.onnx")
                     updated += 1
@@ -148,6 +177,7 @@ for rel in files:
             f_out.write(data)
         if rel == "main.py":
             py_compile.compile(tmp, doraise=True)
+        backup_for_rollback(dest)
         os.replace(tmp, dest)
         if dest.endswith(".sh"):
             os.chmod(dest, 0o755)

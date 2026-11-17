@@ -1,0 +1,11 @@
+{
+ "rule": "Rule (declared before any test tier was read): experiment = the one with the higher mean validation macro-F1 over seeds 42, 43, 44;",
+ "mean_val_macro_f1": {
+  "A_frozen_head": 0.9673089716788755,
+  "B_partial_ft": 0.9813742206189605
+ },
+ "selected_experiment": "B_partial_ft",
+ "selected_run": "B_partial_ft_s43",
+ "selected_seed": 43,
+ "selected_best_epoch": 13
+}

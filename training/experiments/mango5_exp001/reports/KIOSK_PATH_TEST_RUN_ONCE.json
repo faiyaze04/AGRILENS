@@ -1,0 +1,16 @@
+{
+ "run_utc": "2026-11-17T10:34:19+00:00",
+ "hashes": {
+  "candidate_onnx": "a241d91c8b06352f3185343dd0371680e4c4f6c6c1257b151dc3c9d775e55aba",
+  "labels_file": "95a7fb964ae24cace58d40c3ef2b92f8cd5c69d47e372d9e8e13f4d87e377c1f",
+  "main_py": "b600d71ce58adb3599a8a1f84e4ee9728cdede15af1d199cb4ee041fedc43deb",
+  "harness_copy": "068fb1ac1c5ba08c0a2e629e323bf571b42a4736805bd6e12ad1da430c9e50ff",
+  "kiosk_clf": "f1313edb45ae06ee4b42275f308235b94ffa413bf85482e0835faa3ea28a9eb0",
+  "profile": "d5ba99ad8b79c9943db677126a0adfde68131aea69bbb9c3846e1269a3660ee1",
+  "criteria": "f69c45900fdbd7d9646375e86f85a941781f26be7367fdbd712d3a379a398280",
+  "protocol": "ba143e86f4952b980cc4f6c8b8016876fc0cad54d60487f5e6c850570589b837",
+  "this_script": "34de6c4843e2c4347e17f365d09f820da97b526a51790bcf8d8fc370554adaff",
+  "ood_eval_fingerprint": "87a807d545f2074343d43ed430a8dfd06a452424912e4a6bd68906d1ee5372e4",
+  "ood_manifest": "260245b92efc94b1366ab9e1953c4fd713bab7dc51260b227dd916ed36d002de"
+ }
+}

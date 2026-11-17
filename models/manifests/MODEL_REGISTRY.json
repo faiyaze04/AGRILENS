@@ -1,0 +1,29 @@
+{
+ "models": [
+  {
+   "id": "AGRILENS-MULTICROP 1.0.0",
+   "role": "release model of AGRILENS 5.0.0 (release candidate; not deployed)",
+   "path": "models/candidates/agrilens-multicrop-1.0.0/",
+   "sha256": "776d08ac669d0ea8874a458bfb6ea2657c5d40525d30021c7c8c1204d520332b",
+   "bytes": 10067999,
+   "classes": 24,
+   "class_order": "identical to the 4.9.4 labels.txt",
+   "dataset": "AGL-MULTICROP-MD 1.0.0",
+   "training_run": "multicrop1_R2_s42 (selected by training/configurations/SELECTION_RULE.md; see training/reports/agrilens-multicrop-1.0.0/SELECTION.json)",
+   "gate_calibration": "training/evaluation/calibration_1.0.0/FROZEN_GATE_CALIBRATION.json (confidence 0.40, margin 0.12, ood_logit 2.10)",
+   "promotion": "move to models/production/ only after release approval"
+  },
+  {
+   "id": "AGRILENS-24CLASS 4.9.4",
+   "role": "current production model; rollback target",
+   "path": "models/production/agrilens-24class-4.9.4/",
+   "sha256": "0b5bb7fb3916a7c1138f90cfc9abfdc130f06495a34282d474e52718b072ff80"
+  },
+  {
+   "id": "mango5_exp001 B_partial_ft_s43",
+   "role": "experimental five-class Mango candidate; comparison only; not part of 5.0.0",
+   "path": "models/candidates/mango5-exp001/CANDIDATE_POINTER.json",
+   "sha256": "a241d91c8b06352f3185343dd0371680e4c4f6c6c1257b151dc3c9d775e55aba"
+  }
+ ]
+}

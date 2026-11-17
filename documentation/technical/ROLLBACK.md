@@ -1,0 +1,45 @@
+# Rollback (AGRILENS 5.0.0)
+
+There are two kinds of rollback. Pick the one that matches the problem.
+
+| Situation | Use |
+|---|---|
+| One kiosk misbehaves after updating | Single-device rollback with `rollback.sh` |
+| The 5.0.0 release is bad for every kiosk | Fleet rollback: publish the prepared release `AGRILENS-5.0.1-rollback` |
+
+## Why fleet rollback is a new release and not a revert
+
+Every updater (4.9.x and 5.0.0) refuses to install an `APP_VERSION` that is lower than the installed one. Re-publishing 4.9.4 on GitHub `main` would therefore be ignored by kiosks already on 5.0.0. The prepared release in `deployment/rollback/AGRILENS-5.0.1-rollback/` contains the 4.9.4 application code and the 4.9.4 model with only `APP_VERSION` raised to `5.0.1`, so the updaters accept it.
+
+## Single-device rollback
+
+The 5.0.0 updater copies every file it replaces into `rollback/v<previous version>/` inside the application folder before replacing it. A kiosk updated from 4.9.4 therefore has `rollback/v4.9.4/`.
+
+On the kiosk (keyboard or SSH):
+
+```bash
+cd ~/AGRILENS_RaspberryPi
+bash rollback.sh            # lists available rollback copies
+bash rollback.sh v4.9.4     # restores that copy and creates ~/.agrilens_ota_hold
+bash run_agrilens.sh
+```
+
+`rollback.sh` refuses to restore a copy whose `main.py` does not compile.
+
+Limitation: the hold file `~/.agrilens_ota_hold` is honoured only by the 5.0.0 and later updaters. A kiosk restored to 4.9.4 runs the 4.9.4 updater on its next boot. That updater ignores the hold and upgrades again while GitHub `main` serves 5.0.0. To keep one kiosk on 4.9.4 while `main` serves 5.0.0, keep it offline. Disabling `agrilens-ota.service` is not enough, because 4.9.4 `main.py` also starts the updater itself on every boot.
+
+To resume updates on a held 5.0.0+ kiosk: `rm ~/.agrilens_ota_hold`.
+
+## Fleet rollback
+
+1. Rebuild and verify the rollback package:
+   `python deployment/packaging/build_rollback_release.py` (writes `deployment/rollback/AGRILENS-5.0.1-rollback/` with `SHA256SUMS` and `ROLLBACK_MANIFEST.json`).
+2. Copy that folder's contents over `AGRILENS_RaspberryPi/` on a branch, commit, and publish it with `deployment/ota/publish_ota_release.ps1` (release id `AGRILENS-5.0.1-rollback`). The publisher is the only supported way to push to `main`.
+3. Kiosks download 5.0.1 on their next boot. Because 5.0.1 contains the 4.9.4 `ota_update.sh`, those kiosks then behave exactly like 4.9.4 kiosks.
+4. A later fixed release must use a version above 5.0.1 (for example 5.0.2).
+
+Saved settings after rollback: the 4.9.4 code applies whatever thresholds are saved in `kiosk_config.json` / `~/.agrilens_kiosk_config.json` and ignores the `calibration_model_sha256` tag that 5.0.0 writes. If an operator saved Admin settings while running 5.0.0, those values (calibrated for the 5.0.0 model) will be applied to the 4.9.4 model after rollback. Press **↺ RESET DEFAULTS** in the Admin Console after a rollback, or delete `~/.agrilens_kiosk_config.json`.
+
+## Repository rollback
+
+The complete pre-5.0.0 history is preserved in `D:\AGRILENS_Training\release_5.0.0\baseline_4.9.4\AGRILENS_all_refs.bundle` (all refs) and the working tree as found in `working_tree_app_folders_as_found.zip` with `working_tree_SHA256SUMS.txt`. The 4.9.4 application files are also kept byte-identical in `tests/regression/baseline/legacy_4.9.4/` and the 4.9.4 model in `models/production/agrilens-24class-4.9.4/`.
