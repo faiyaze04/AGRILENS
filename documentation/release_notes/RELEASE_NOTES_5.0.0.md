@@ -55,3 +55,7 @@ The 4.9.4 model was most probably trained on the MangoLeafBD, PlantVillage and P
 - No Raspberry Pi 5 benchmark, no C270 field data, no expert label review. Desktop latency (median 22.5 ms per diagnosis, same as 4.9.4) is not a Pi figure.
 - Labels from public datasets have not been verified by an agronomist.
 - Kiosks updating from 4.9.4 run the 4.9.4 updater for this first update; it does not keep a rollback copy (see `documentation/technical/ROLLBACK.md`).
+
+## Exhibition acceptance (added 2026-11-17)
+
+The project owner accepted this release for the EXPISCOR 2026 school exhibition with the C2 deviation recorded in `C2_DEVIATION_EXHIBITION_ACCEPTANCE.md`. The evaluation results and criteria above are unchanged. Exhibition installation is side by side with 4.9.4 using `deployment/exhibition/` (see `EXHIBITION_READINESS_REPORT_5.0.0.md`). It is still not published and not deployed by OTA.
