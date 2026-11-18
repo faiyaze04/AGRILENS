@@ -34,7 +34,7 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Test outcome | Baseline: 149 passed. After the change: full gate PASS (46 pass, 0 fail, 1 warn = uncommitted tree, 1 skip = no type checker); pytest 183 passed (149 existing + 34 new); ruff clean; package rebuild byte-identical to the committed `AGRILENS_RaspberryPi/` (41 files). S1 blocked by the git pre-commit hook and by Kiro hook C: version not incremented, no register entry, no documentation; the existing test `test_device_package_is_generated_from_the_sources[main.py]` also failed, as expected. S2: APP_VERSION 5.0.0 → 5.1.0 propagated to `OTA_RELEASE_ID`, `BUILD_TIMESTAMP`, both markers and a release-notes stub; a second bump refused. S3: junk and secret checks FAIL. S4: PASS, tests skipped, register warning. S5: gate PASS (183 passed), commit created, git note with version, change id, files and test summary; no push. Defects found by these tests and fixed before this commit: hook C checked the session repository instead of the command's working directory, and missed commits written with `-c key=value` options; the first commit attempt of this change was blocked because the whitespace check treated the CRLF line endings of the byte-preserved `models/manifests/MODEL_REGISTRY.json` as trailing whitespace (now checked with `core.whitespace=cr-at-eol` for that invocation only). |
 | Documentation updated | `HOW_TO.md`, `README.md`, `documentation/governance/ENGINEERING_GOVERNANCE.md`, `documentation/governance/DOCUMENTATION_AUDIT_2026-11-18.md`, `documentation/technical/CONFIGURATION.md`, `ARCHITECTURE.md`, `INSTALLATION.md`, `field_validation_protocol_phase_A.md`, `RELEASE_NOTES_5.0.0.md`, this register |
 | Known risks | Kiro hook behaviour depends on the Kiro hook runtime (working directory = repository root, tool call as JSON on stdin); the git hooks enforce the gate independently. The gate runs the whole test suite (about 75 s) for every non-documentation commit; in S5 it ran in both the Kiro hook and the git hook (the skip of an already-passed tree was verified separately). Kiro shows hook output only when a hook blocks. Hook C matches command text, so a shell command that merely mentions a commit command in a quoted string is also checked (and blocked if the gate fails); write such text with the file tools. The device guide and exhibition kit still contain the outdated statements listed in the audit (open items 1 and 2). Proposed deletion of `archive/legacy_tools/push_ota_update_4.9.4.bat` awaits approval. |
-| Commit | pending |
+| Commit | 492973e |
 
 ### CR-0003 — Relocate training paths to AGRILENS_5.0.0 workspace; verify kiosk and trainer
 
@@ -50,7 +50,7 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Test outcome | 183 tests passed; smoke training completed with all outputs; dataset verified (24 classes); 38/38 checksums match; app stayed running 20 s without errors |
 | Documentation updated | documentation/technical/TRAINING.md |
 | Known risks | Dataset build tools under datasets/dataset_tools and several records still name D:\AGRILENS_Training (historical; the tools would fail if re-run). Model training downloads pretrained weights from Hugging Face unless cached. |
-| Commit | pending |
+| Commit | f1af394 |
 
 ### CR-0004 — AGRILENS 5.1.0: C270 capture at 1280x720 (MJPG) with 640x480 fallback
 
@@ -66,7 +66,7 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Test outcome | 196 passed, 0 failed, 0 skipped. Package build: AGRILENS-5.1.0, 38 files, model SHA-256 unchanged. Not tested on a real C270 or Raspberry Pi 5. |
 | Documentation updated | HOW_TO_RUN_ON_RASPBERRY_PI.md (version, camera-resolution troubleshooting), HOW_TO.md (camera setup), CONFIGURATION.md (`cam_resolution`), ROLLBACK.md (5.0.1 rollback is a downgrade for 5.1.0 kiosks), RELEASE_NOTES_5.1.0.md, HOW_TO index. Verified, no change needed: ARCHITECTURE.md, ENGINEERING_GOVERNANCE.md, MODEL_REGISTRY.json (model unchanged) |
 | Known risks | Preview frame rate, CPU load and MJPG decoding on the Raspberry Pi 5 are unmeasured; diagnosis behaviour on live 1280x720 captures is unvalidated (model and gates validated on image files). Kiosks on 5.1.0 refuse AGRILENS-5.0.1-rollback; a fleet rollback needs a release above 5.1.0. Per-kiosk mitigation: `cam_resolution` = `640x480` in ~/.agrilens_kiosk_config.json. |
-| Commit | pending |
+| Commit | f1af394 |
 
 ### CR-0005 — Exhibition kit discarded (owner request)
 
@@ -82,7 +82,7 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Test outcome | 192 passed, 0 failed (the 4 exhibition-kit tests were deleted with the kit). |
 | Documentation updated | RELEASE_NOTES_5.0.0.md (dated note), HOW_TO.md index. Older records (DOCUMENTATION_AUDIT_2026-11-18.md, CR-0004, release readiness report) still mention the kit as history and are not edited. |
 | Known risks | None for kiosks. The files remain in git history (commit 9017320) and on GitHub main until this commit is pushed. Any Raspberry Pi where the kit was installed keeps its own copy (for example ~/AGRILENS_5.0.0 and ~/.agrilens_ota_hold); remove those on the device. |
-| Commit | pending |
+| Commit | 774cdd4 |
 
 ### CR-0006 — Model trainer separated into the standalone Model_Trainer_Program
 
@@ -98,4 +98,4 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Test outcome | Trainer: training and export exit 0; export parity max logit difference 8.9e-7, argmax agreement 1.0; manifest carries the given version. Kiosk: 192 passed, 0 failed. |
 | Documentation updated | TRAINING.md, ARCHITECTURE.md, ROLLBACK.md, ENGINEERING_GOVERNANCE.md, README.md, HOW_TO index; new Model_Trainer_Program\README.md. Not edited: release records and manifests that cite the old training/ paths (MODEL_MANIFEST.json, MODEL_REGISTRY.json training_run text, release readiness report, 5.0.0 change logs) and the frozen dataset-card mirror. |
 | Known risks | Model_Trainer_Program is now its own local git repository (allow-list .gitignore: code, configurations, records and run metrics only; 113 files, 0.56 MB); its GitHub repository is not yet created. The pre-move history is in this repository's git history. Four dataset-builder scripts still name the original AgriLens source folders (needed only to rebuild a dataset from sources). On GitHub the moved folders remain until this commit is pushed. |
-| Commit | pending |
+| Commit | 774cdd4 |
