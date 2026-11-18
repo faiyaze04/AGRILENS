@@ -122,23 +122,12 @@ Kiosks download a fixed file list from `AGRILENS_RaspberryPi/` on GitHub `main` 
 | Document | Topic |
 |---|---|
 | [`training/evaluation/RELEASE_EVALUATION_CRITERIA.md`](training/evaluation/RELEASE_EVALUATION_CRITERIA.md) | Pre-declared release criteria C1-C9 |
-| [`training/configurations/SELECTION_RULE.md`](training/configurations/SELECTION_RULE.md) | Pre-declared model selection rule |
 | [`training/reports/agrilens-multicrop-1.0.0/EXPERIMENT_REGISTER.md`](training/reports/agrilens-multicrop-1.0.0/EXPERIMENT_REGISTER.md) | Training experiment register, AGRILENS-MULTICROP 1.0.0 |
-| [`training/experiments/EXPERIMENT_REGISTER_mango5_exp001.md`](training/experiments/EXPERIMENT_REGISTER_mango5_exp001.md) | Experiment register, experimental Mango five-class model (not released) |
-| [`training/experiments/mango5_exp001/reports/README.md`](training/experiments/mango5_exp001/reports/README.md) | Reports of the experimental Mango five-class model (not released) |
 | [`documentation/release_notes/AGRILENS_5.0.0_RELEASE_READINESS_REPORT.md`](documentation/release_notes/AGRILENS_5.0.0_RELEASE_READINESS_REPORT.md) | 5.0.0 release-readiness report (2026-11-17) |
 | [`documentation/release_notes/C2_DEVIATION_EXHIBITION_ACCEPTANCE.md`](documentation/release_notes/C2_DEVIATION_EXHIBITION_ACCEPTANCE.md) | Recorded C2 (Mango) deviation acceptance |
-| [`documentation/release_notes/EXHIBITION_READINESS_REPORT_5.0.0.md`](documentation/release_notes/EXHIBITION_READINESS_REPORT_5.0.0.md) | EXPISCOR 2026 exhibition readiness report (2026-11-17) |
 | [`documentation/release_notes/FILE_CHANGE_REGISTER_5.0.0.csv`](documentation/release_notes/FILE_CHANGE_REGISTER_5.0.0.csv) | File-level change register of the 5.0.0 restructure |
 | [`documentation/release_notes/REPOSITORY_CHANGE_LOG_5.0.0.csv`](documentation/release_notes/REPOSITORY_CHANGE_LOG_5.0.0.csv) | Repository change log of the 5.0.0 restructure |
 | [`documentation/governance/DOCUMENTATION_AUDIT_2026-11-18.md`](documentation/governance/DOCUMENTATION_AUDIT_2026-11-18.md) | Documentation audit and KEEP/MERGE/ARCHIVE/DELETE register |
-
-**Release-specific references**
-
-| Document | Topic |
-|---|---|
-| [`deployment/exhibition/README_KIT.md`](deployment/exhibition/README_KIT.md) | EXPISCOR 2026 exhibition kit (frozen with the kit) |
-| [`deployment/exhibition/EXHIBITION_TEST_CHECKLIST.md`](deployment/exhibition/EXHIBITION_TEST_CHECKLIST.md) | Exhibition hardware test checklist (Pi 5, C270, touch display) |
 
 **History (superseded, kept for traceability)**
 

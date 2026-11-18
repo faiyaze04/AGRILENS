@@ -28,8 +28,9 @@ Mango Turning Brown (taxonomy id MNG009) is in the dataset taxonomy but quaranti
 ```text
 application/            the ONE authoritative application source (main.py, requirements, logos, samples, default config)
 models/                 production/ (4.9.4 model, preserved), candidates/ (release model 1.0.0, Mango candidate pointer), manifests/MODEL_REGISTRY.json
-datasets/               dataset_tools/ (build, freeze, verify), master/AGL-MULTICROP-MD/ (manifests and card; images live outside git)
-training/               scripts/, configurations/, evaluation/, experiments/, reports/, legacy_4.9.4/
+datasets/               master/AGL-MULTICROP-MD/ (manifests and card of the training set; images live with the trainer)
+training/               evaluation/ (gate calibration, release evaluation), reports/ (release evidence of model 1.0.0)
+                        The trainer itself is the separate Model Trainer Program (..\Model_Trainer_Program), never installed on a kiosk.
 deployment/             ota/ (updater, publisher), raspberry_pi/ (setup, run, rollback, guide), packaging/ (package builders), rollback/ (prepared 5.0.1 rollback release)
 documentation/          technical/, release_notes/, history/, hardware/
 tests/                  unit/, integration/, regression/ (with the 4.9.4 baseline)

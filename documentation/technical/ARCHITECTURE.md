@@ -10,7 +10,9 @@
 | Model registry | `models/manifests/MODEL_REGISTRY.json` | All models with SHA-256, status and dataset. |
 | Device scripts | `deployment/raspberry_pi/`, `deployment/ota/ota_update.sh` | Sources for the files on the kiosk. |
 | Device package (generated) | `AGRILENS_RaspberryPi/` | Built by `deployment/packaging/build_device_package.py`; never edited by hand. |
-| Master dataset | `D:\AGRILENS_Training\datasets\AGL-MULTICROP-MD\AGL-MULTICROP-MD-1.0.0` | Outside git (images). Manifests and card mirrored in `datasets/master/AGL-MULTICROP-MD/`. |
+| Model trainer (separate program) | `<AGRILENS_5.0.0>\Model_Trainer_Program\trainer\` | Not part of this repository and never on a kiosk. Trains, exports and checks models on a PC; a finished model is handed over by copying its export folder to `models/candidates/<model-id>/`. See `documentation/technical/TRAINING.md`. |
+| Master dataset | `<AGRILENS_5.0.0>\Model_Trainer_Program\datasets\AGL-MULTICROP-MD\AGL-MULTICROP-MD-1.0.0` | Outside git (images), with the trainer. Manifests and card mirrored in `datasets/master/AGL-MULTICROP-MD/`. |
+| Model evaluation and release evidence | `training/evaluation/`, `training/reports/` | Stay in this repository: gate calibration and release evaluation run the kiosk's own `main.py`, and the release tooling reads the frozen results. |
 
 ### Why `AGRILENS_RaspberryPi/` and a single `main.py` remain
 

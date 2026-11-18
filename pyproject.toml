@@ -9,7 +9,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 line-length = 160
 # Excluded: the generated device folder, byte-preserved 4.9.4 copies, archives, and application/main.py (kept in the 4.9.4 style so
 # its diff against 4.9.4 stays reviewable).
-extend-exclude = ["AGRILENS_RaspberryPi", "application/main.py", "archive", "training/legacy_4.9.4", ".venv", "deployment/rollback", "tests/regression/baseline/legacy_4.9.4"]
+extend-exclude = ["AGRILENS_RaspberryPi", "application/main.py", "archive", ".venv", "deployment/rollback", "tests/regression/baseline/legacy_4.9.4"]
 
 [tool.ruff.lint]
 # Correctness-focused rules only (pyflakes, pycodestyle errors/warnings, bugbear). Style rules are not enforced.
@@ -21,13 +21,9 @@ ignore = ["B011", "B905", "B007", "E731", "E501"]
 "training/**" = ["E701", "E702", "E703", "E741", "E401", "E402", "E231", "F401", "F403", "F405", "W291", "W293"]
 "datasets/**" = ["E701", "E702", "E703", "E741", "E401", "E402", "E231", "F401", "F403", "F405", "W291", "W293", "F841"]
 # B023: the lambda is evaluated immediately inside the same loop iteration (Series.map), so the late-binding case cannot occur.
-"datasets/dataset_tools/agl_mango_md/10_build_rc1.py" = ["B023"]
 # 5.0.0 release tooling is written in the compact style of the research scripts; only style codes are waived.
 "deployment/packaging/**" = ["E701", "E702", "E401", "E741"]
 "tools/migration/**" = ["E701", "E702", "E401", "E741"]
 "tests/integration/test_ota_publication.py" = ["E741"]
 # F811: the shared pytest fixture `serve` is imported from test_ota_publication and used as a test argument (standard fixture-import pattern).
 "tests/integration/test_inapp_ota.py" = ["F811"]
-# Exhibition tooling (compact style); only style codes are waived.
-"tools/validation/exhibition_desktop_check.py" = ["E701", "E702", "E401", "E741"]
-"deployment/exhibition/**" = ["E701", "E702", "E401", "E741"]

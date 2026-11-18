@@ -67,6 +67,7 @@ The project owner accepted this release for the EXPISCOR 2026 school exhibition 
 - Kiosks update on their next boot, kiosk start or Admin OTA tap; a kiosk that stays on does not update by itself.
 - 2026-11-18: the project owner decided to retain 5.0.0 on `main`: no rollback to 4.9.4, no publication of the rollback release 5.0.1, no retraining, no change to the release criteria. Priority: Raspberry Pi 5 and Logitech C270 validation, monitoring of OTA installation and stability.
 - **Exhibition kit procedures are affected.** `deployment/exhibition/README_KIT.md` and `pi_restore_previous.sh` were written while `main` served 4.9.4. Since 2026-11-17 a kiosk that is restored to 4.9.4 and has internet access updates itself to 5.0.0 on its next boot (the 4.9.4 updater ignores `~/.agrilens_ota_hold`). Keep such a kiosk offline if it must stay on 4.9.4.
+- 2026-11-18: at the project owner's request the exhibition kit was discarded (CR-0005): `deployment/exhibition/`, `tests/integration/test_exhibition_kit.py`, `tools/validation/exhibition_desktop_check.py`, `documentation/exhibition/` and `EXHIBITION_READINESS_REPORT_5.0.0.md` were deleted. The paragraphs above that name them are historical; the files remain only in git history (release commit `9017320`). The C2 deviation record is kept.
 
 ## Field observations (not validated results)
 

@@ -67,3 +67,35 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Documentation updated | HOW_TO_RUN_ON_RASPBERRY_PI.md (version, camera-resolution troubleshooting), HOW_TO.md (camera setup), CONFIGURATION.md (`cam_resolution`), ROLLBACK.md (5.0.1 rollback is a downgrade for 5.1.0 kiosks), RELEASE_NOTES_5.1.0.md, HOW_TO index. Verified, no change needed: ARCHITECTURE.md, ENGINEERING_GOVERNANCE.md, MODEL_REGISTRY.json (model unchanged) |
 | Known risks | Preview frame rate, CPU load and MJPG decoding on the Raspberry Pi 5 are unmeasured; diagnosis behaviour on live 1280x720 captures is unvalidated (model and gates validated on image files). Kiosks on 5.1.0 refuse AGRILENS-5.0.1-rollback; a fleet rollback needs a release above 5.1.0. Per-kiosk mitigation: `cam_resolution` = `640x480` in ~/.agrilens_kiosk_config.json. |
 | Commit | pending |
+
+### CR-0005 — Exhibition kit discarded (owner request)
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-18 |
+| Application version | 5.1.0 (unchanged: no shipped file changed; the kit was never part of the OTA package) |
+| Category | Tooling |
+| Description | Deleted the EXPISCOR 2026 exhibition kit and everything that existed only for it: deployment/exhibition/ (kit builder, launcher, Pi backup/install/benchmark/restore scripts, kit README, test checklist), tests/integration/test_exhibition_kit.py, tools/validation/exhibition_desktop_check.py, documentation/exhibition/ (desktop and GUI check results) and `EXHIBITION_READINESS_REPORT_5.0.0.md`. Removed the kit's governance area, index entries and lint exceptions. Outside the repository, deleted `Release_Evidence/exhibition/` (kit zip and unpacked kit), the exhibition logs and test outputs there, and leftover pytest temp copies. Dated note added to RELEASE_NOTES_5.0.0.md. `C2_DEVIATION_EXHIBITION_ACCEPTANCE.md` is kept: it records the C2 release decision. |
+| Reason | Owner request (2026-11-18): the exhibition kit is not needed; delete it completely. |
+| Files affected | deployment/exhibition/ (8 files, deleted), tests/integration/test_exhibition_kit.py (deleted), tools/validation/exhibition_desktop_check.py (deleted), documentation/exhibition/ (2 files, deleted), documentation/release_notes/EXHIBITION_READINESS_REPORT_5.0.0.md (deleted), documentation/release_notes/RELEASE_NOTES_5.0.0.md, tools/governance/governance_rules.json, pyproject.toml, HOW_TO.md (index), this register |
+| Tests executed | `python -m pytest -q` (Kiosk .venv, Windows) |
+| Test outcome | 192 passed, 0 failed (the 4 exhibition-kit tests were deleted with the kit). |
+| Documentation updated | RELEASE_NOTES_5.0.0.md (dated note), HOW_TO.md index. Older records (DOCUMENTATION_AUDIT_2026-11-18.md, CR-0004, release readiness report) still mention the kit as history and are not edited. |
+| Known risks | None for kiosks. The files remain in git history (commit 9017320) and on GitHub main until this commit is pushed. Any Raspberry Pi where the kit was installed keeps its own copy (for example ~/AGRILENS_5.0.0 and ~/.agrilens_ota_hold); remove those on the device. |
+| Commit | pending |
+
+### CR-0006 — Model trainer separated into the standalone Model_Trainer_Program
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-18 |
+| Application version | 5.1.0 (unchanged: nothing shipped to kiosks changed; training code was never part of the OTA package) |
+| Category | Dataset/training |
+| Description | The model trainer is now a standalone program outside this repository: training/scripts, training/configurations, training/experiments, training/legacy_4.9.4 and datasets/dataset_tools moved to `<AGRILENS_5.0.0>\Model_Trainer_Program\trainer\` (65 files, copied from HEAD, then removed here). In the trainer: configuration paths are relative to Model_Trainer_Program (`agl_common.resolve`); scripts locate their own folders from `__file__` instead of absolute `D:\...` paths; `export_onnx.py` defaults to `exports\<run_id>` and to its own copy of the kiosk class order (`configurations\kiosk_labels_24class.txt`) and takes `--model-id`/`--model-version` instead of a hard-coded 1.0.0; new `Model_Trainer_Program\README.md` and `trainer\requirements-train-lock.txt`. Kept here: `training/evaluation/` (runs the kiosk `main.py`; frozen calibration and release evaluation read by the release tooling) and `training/reports/` (release evidence). |
+| Reason | Owner request (2026-11-18): separate the kiosk program from the trainer; the trainer must work on its own and does not belong on a Raspberry Pi (a new Pi installed by `git clone` received all training code). |
+| Files affected | training/scripts/, training/configurations/, training/experiments/, training/legacy_4.9.4/, datasets/dataset_tools/ (removed; now in Model_Trainer_Program\trainer\), documentation/technical/TRAINING.md (rewritten: trainer location, hand-over, evaluation), documentation/technical/ARCHITECTURE.md, documentation/technical/ROLLBACK.md (4.9.4 bundle path), documentation/governance/ENGINEERING_GOVERNANCE.md (rule 6), README.md (layout), HOW_TO.md (index), tools/governance/governance_rules.json, pyproject.toml, requirements-lock.txt (pins of the kiosk test environment, written when .venv was rebuilt after the move; previously untracked), this register |
+| Tests executed | Trainer (outside the repository): all 37 trainer scripts compile; config paths resolve; dataset freeze check; standalone smoke run started from an unrelated folder (train_integrated.py 64 samples / 1 epoch, then export_onnx.py with default class order and --model-version). Kiosk: `python -m pytest -q`. |
+| Test outcome | Trainer: training and export exit 0; export parity max logit difference 8.9e-7, argmax agreement 1.0; manifest carries the given version. Kiosk: 192 passed, 0 failed. |
+| Documentation updated | TRAINING.md, ARCHITECTURE.md, ROLLBACK.md, ENGINEERING_GOVERNANCE.md, README.md, HOW_TO index; new Model_Trainer_Program\README.md. Not edited: release records and manifests that cite the old training/ paths (MODEL_MANIFEST.json, MODEL_REGISTRY.json training_run text, release readiness report, 5.0.0 change logs) and the frozen dataset-card mirror. |
+| Known risks | Model_Trainer_Program is now its own local git repository (allow-list .gitignore: code, configurations, records and run metrics only; 113 files, 0.56 MB); its GitHub repository is not yet created. The pre-move history is in this repository's git history. Four dataset-builder scripts still name the original AgriLens source folders (needed only to rebuild a dataset from sources). On GitHub the moved folders remain until this commit is pushed. |
+| Commit | pending |
