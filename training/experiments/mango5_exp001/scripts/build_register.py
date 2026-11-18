@@ -5,7 +5,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(__file__))
 from common import *
 
-ROOT = r"D:\AGRILENS_Training\AGL-MANGO-MD"; rows = []
+ROOT = r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD"; rows = []
 sel = json.load(open(EXP + r"\SELECTION.json"))["selected_run"]
 for r in sorted(os.listdir(EXP + r"\runs")):
     p = EXP + rf"\runs\{r}"; s = json.load(open(p + r"\summary.json")) if os.path.exists(p + r"\summary.json") else {}

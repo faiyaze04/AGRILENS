@@ -1,8 +1,8 @@
 # Installing AGRILENS 5.0.0
 
-## A. Kiosks already running 4.9.4 (normal path, after publication)
+## A. Kiosks already running 4.9.4 (normal path)
 
-No action on the device. On its next boot (or when **ADMIN → ☁ OTA UPDATE (INTERNET)** is tapped) the kiosk downloads release `AGRILENS-5.0.0` from GitHub `main`, verifies the model SHA-256 and restarts. Check afterwards:
+5.0.0 has been on GitHub `main` since 2026-11-17 (`documentation/CHANGE_REGISTER.md`, `CR-0001`). No action on the device. On its next boot (or when **ADMIN → ☁ OTA UPDATE (INTERNET)** is tapped) the kiosk downloads release `AGRILENS-5.0.0` from GitHub `main`, verifies the model SHA-256 and restarts. Check afterwards:
 
 - The tooltip on the AGRILENS brand label (top bar) shows `v5.0.0 (AGRILENS-5.0.0)`, model `AGRILENS-MULTICROP 1.0.0` and dataset `AGL-MULTICROP-MD 1.0.0`.
 - The start-up console line (terminal or `journalctl`) reads `AGRILENS 5.0.0: model ONNX AGRILENS-MULTICROP 1.0.0; rejection gates from calibration of AGRILENS-MULTICROP 1.0.0: ...`.
@@ -38,7 +38,7 @@ Windows with Python 3.13: `tools/development/run_agrilens_windows_py313.bat`.
 
 ## D. Offline installation from a release archive
 
-Copy the `AGRILENS_RaspberryPi` folder from the approved release commit (tag `AGRILENS-5.0.0`) to `~/AGRILENS_RaspberryPi` by USB drive, run `sha256sum -c SHA256SUMS`, then continue with step B from `./setup_rpi.sh`. To keep an offline kiosk from updating when it later connects, create `~/.agrilens_ota_hold`.
+Copy the `AGRILENS_RaspberryPi` folder from the published release commit (`9017320` on `main`; no tag was created) to `~/AGRILENS_RaspberryPi` by USB drive, run `sha256sum -c SHA256SUMS`, then continue with step B from `./setup_rpi.sh`. To keep an offline kiosk from updating when it later connects, create `~/.agrilens_ota_hold`.
 
 ## Rollback
 

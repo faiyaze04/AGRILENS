@@ -28,6 +28,8 @@ The build refuses if: `MODEL_SHA256` in `main.py` differs from the packaged mode
 
 ## Version identifiers (constants in `main.py`)
 
+`APP_VERSION` in `application/main.py` is the single authoritative version. It must stay a literal in `main.py` because every deployed updater reads it from the downloaded file. Everything else is derived from it: at run time (brand-label tooltip, status bar, start-up log line, OTA User-Agent, downgrade guard, rollback folder name), at build time (`RELEASE_MANIFEST.json`, release record), or by `tools/governance/agl_governance.py bump` (`OTA_RELEASE_ID`, `BUILD_TIMESTAMP`, version markers in `README.md` and `HOW_TO.md`, release-notes stub). The rules and checks are in `documentation/governance/ENGINEERING_GOVERNANCE.md`.
+
 | Constant | 5.0.0 value | Meaning |
 |---|---|---|
 | `APP_VERSION` | `5.0.0` | Application version; the updaters compare it to block downgrades. |
@@ -76,6 +78,6 @@ The hold file `~/.agrilens_ota_hold` (created by `rollback.sh`) stops automatic 
 
 A 4.9.4 kiosk receiving 5.0.0 runs the 4.9.4 updater. That updater downloads the files listed above (not `rollback.sh`; the 5.0.0 `ota_update.sh` it installs fetches `rollback.sh` on the next update), verifies the model hash, and keeps no rollback copy for this first hop. The repository keeps the 4.9.4 files in `tests/regression/baseline/legacy_4.9.4/`, `models/production/agrilens-24class-4.9.4/` and the prepared rollback release.
 
-Publishing is done only with `deployment/ota/publish_ota_release.ps1` (verifies the build, hashes and tests, requires typing the release id, then merges to `main`, tags and pushes). It replaces the retired `push_ota_update.bat` (archived in `archive/legacy_tools/`), which ran `git add -A` and pushed without checks.
+Publishing is done only with `deployment/ota/publish_ota_release.ps1` (verifies the build, hashes and tests, requires typing the release id, then merges to `main`, tags and pushes). It replaces the retired `push_ota_update.bat` (archived in `archive/legacy_tools/`), which ran `git add -A` and pushed without checks. Deviation on record: 5.0.0 itself was published on 2026-11-17 by a direct fast-forward push, without the publisher and without a tag (`documentation/CHANGE_REGISTER.md`, `CR-0001`).
 
 Rollback: `documentation/technical/ROLLBACK.md`.

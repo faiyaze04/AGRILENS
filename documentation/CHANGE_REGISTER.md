@@ -1,0 +1,69 @@
+# AGRILENS change register
+
+Every significant change from 2026-11-17 onwards. Rules, fields and categories: `documentation/governance/ENGINEERING_GOVERNANCE.md`, section 4. Earlier changes: `documentation/history/REVISION_HISTORY_to_4.9.4.md` (up to 4.9.4) and the 5.0.0 restructure records `documentation/release_notes/FILE_CHANGE_REGISTER_5.0.0.csv` and `REPOSITORY_CHANGE_LOG_5.0.0.csv`.
+
+New entries: `python tools/governance/agl_governance.py register new --title "..." --category "..."`. The commit id of the newest entry stays `pending` until `register sync` runs with the next change; the machine-recorded result of each commit is in `git notes --ref=agrilens show <commit>`.
+
+### CR-0001 — Publication of AGRILENS 5.0.0 to GitHub main
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-17 |
+| Application version | 5.0.0 (release; previous published version 4.9.4). Recorded after the fact on 2026-11-18. |
+| Category | DevOps/OTA |
+| Description | Branch `release/agrilens-5.0.0` was pushed to `https://github.com/faiyaze04/AGRILENS` branch `main` as a fast-forward (`01059f8` → `9017320`) by the Kiro agent, authenticated as the repository owner, after the owner's explicit approval. Kiosks download 5.0.0 on their next boot, kiosk start or Admin OTA tap. |
+| Reason | Owner decision to deploy 5.0.0; on 2026-11-18 the owner decided to retain it (no rollback, no rollback release 5.0.1, no retraining, no change of release criteria). |
+| Files affected | Whole branch, including the OTA folder `AGRILENS_RaspberryPi/` (38 files, `SHA256SUMS`); file list in `documentation/release_notes/FILE_CHANGE_REGISTER_5.0.0.csv`. |
+| Tests executed | Before the push: OTA simulation on the desktop (4.9.4 files from GitHub as the starting state, the 5.0.0 `ota_update.sh` logic against a local HTTP server serving the 5.0.0 folder, kiosk restart step stubbed); checks of line endings, `main.py` compilation, `SHA256SUMS`, imports, model hash. After the push: raw GitHub URLs re-read until they served 5.0.0, model hash compared. On 2026-11-18 on the same commit: `pytest` (whole suite) and `agl_governance.py check --full`. |
+| Test outcome | Simulation: all 10 updatable files replaced and identical to the release, model SHA-256 verified, second run "up to date", `rollback/v4.9.4/` created. Raw URLs served 5.0.0 about 4 to 5 minutes after the push (CDN cache), model hash matched. 2026-11-18: 149 passed; full gate on `9017320`: package byte-reproducible, all model, version and package checks pass. Not tested: the restart step on a real Pi, any Raspberry Pi 5, C270 or touch-display test. |
+| Documentation updated | None at the time. Corrected in `CR-0002`: `README.md`, `INSTALLATION.md`, `ARCHITECTURE.md`, `RELEASE_NOTES_5.0.0.md`, `MODEL_REGISTRY.json`; the planned procedure was archived. |
+| Known risks | Published without `deployment/ota/publish_ota_release.ps1` and without the tag `AGRILENS-5.0.0`. Release criterion C2 (Mango macro-F1 0.849) failed and is accepted only as a recorded deviation. No Raspberry Pi 5, C270 or expert validation. 4.9.4 kiosks keep no rollback copy for this first update. The exhibition kit procedures assume `main` serves 4.9.4. 2026-11-18 field report: a Mango leaf rejected as UNKNOWN PLANT on the exhibition hardware, cause not established. |
+| Commit | 9017320 |
+
+### CR-0002 — Engineering governance: versioning, hooks, quality gate, documentation audit
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-18 |
+| Application version | 5.0.0 (unchanged: repository tooling, tests and documentation only; no shipped file changed, verified by the gate check "package matches source") |
+| Category | Tooling; Documentation; DevOps/OTA |
+| Description | Added `tools/governance/agl_governance.py` with rules `governance_rules.json`: version report and `bump`, change impact, documentation obligations, change register, HOW_TO index, pre-commit and pre-release quality gate, Kiro and git hook entry points. Kiro hooks A to C in `.kiro/hooks/`; git pre-commit and post-commit shims. New documents `HOW_TO.md`, `documentation/technical/CONFIGURATION.md`, `documentation/governance/ENGINEERING_GOVERNANCE.md`, `documentation/governance/DOCUMENTATION_AUDIT_2026-11-18.md`, this register. Documentation audit: outdated status statements corrected, stale paths fixed, superseded documents archived. Unit tests `tests/unit/test_governance.py`. |
+| Reason | Owner directive of 2026-11-18 (engineering governance): versioning, documentation and quality controls must be automatic and traceable. |
+| Files affected | `tools/governance/*`, `.kiro/hooks/*`, `tests/unit/test_governance.py`, `HOW_TO.md`, `README.md`, `.gitignore` (BOM removed), `documentation/CHANGE_REGISTER.md`, `documentation/governance/*`, `documentation/technical/{ARCHITECTURE,INSTALLATION,CONFIGURATION,field_validation_protocol_phase_A}.md`, `documentation/release_notes/RELEASE_NOTES_5.0.0.md`, `models/manifests/MODEL_REGISTRY.json`; moved to `documentation/history/`: `GITHUB_PUBLICATION_INSTRUCTIONS_5.0.0.md`, the three Phase A reports |
+| Tests executed | Main repository, 2026-11-18: `agl_governance.py check --full` (includes `ruff check .`, `bash -n` on 22 scripts, ONNX load and sanity inference, package build in a temporary copy, whole pytest suite); baseline `pytest` before any change. Throwaway clone in the user's temporary folder (never pushed): S1 unversioned change to `application/main.py` committed through the hooks; S2 `bump minor`; S3 staged `debug_probe.py` containing a token; S4 documentation-only change; S5 complete governance change committed through Kiro hook C and the git hooks, then `git notes --ref=agrilens show HEAD`. Kiro hooks observed live in this session: A (prompt after every file write) and C (intercepted shell commands containing a commit). Hook B (UserPromptSubmit) has not fired yet: no prompt was submitted after it was created. |
+| Test outcome | Baseline: 149 passed. After the change: full gate PASS (46 pass, 0 fail, 1 warn = uncommitted tree, 1 skip = no type checker); pytest 183 passed (149 existing + 34 new); ruff clean; package rebuild byte-identical to the committed `AGRILENS_RaspberryPi/` (41 files). S1 blocked by the git pre-commit hook and by Kiro hook C: version not incremented, no register entry, no documentation; the existing test `test_device_package_is_generated_from_the_sources[main.py]` also failed, as expected. S2: APP_VERSION 5.0.0 → 5.1.0 propagated to `OTA_RELEASE_ID`, `BUILD_TIMESTAMP`, both markers and a release-notes stub; a second bump refused. S3: junk and secret checks FAIL. S4: PASS, tests skipped, register warning. S5: gate PASS (183 passed), commit created, git note with version, change id, files and test summary; no push. Defects found by these tests and fixed before this commit: hook C checked the session repository instead of the command's working directory, and missed commits written with `-c key=value` options; the first commit attempt of this change was blocked because the whitespace check treated the CRLF line endings of the byte-preserved `models/manifests/MODEL_REGISTRY.json` as trailing whitespace (now checked with `core.whitespace=cr-at-eol` for that invocation only). |
+| Documentation updated | `HOW_TO.md`, `README.md`, `documentation/governance/ENGINEERING_GOVERNANCE.md`, `documentation/governance/DOCUMENTATION_AUDIT_2026-11-18.md`, `documentation/technical/CONFIGURATION.md`, `ARCHITECTURE.md`, `INSTALLATION.md`, `field_validation_protocol_phase_A.md`, `RELEASE_NOTES_5.0.0.md`, this register |
+| Known risks | Kiro hook behaviour depends on the Kiro hook runtime (working directory = repository root, tool call as JSON on stdin); the git hooks enforce the gate independently. The gate runs the whole test suite (about 75 s) for every non-documentation commit; in S5 it ran in both the Kiro hook and the git hook (the skip of an already-passed tree was verified separately). Kiro shows hook output only when a hook blocks. Hook C matches command text, so a shell command that merely mentions a commit command in a quoted string is also checked (and blocked if the gate fails); write such text with the file tools. The device guide and exhibition kit still contain the outdated statements listed in the audit (open items 1 and 2). Proposed deletion of `archive/legacy_tools/push_ota_update_4.9.4.bat` awaits approval. |
+| Commit | pending |
+
+### CR-0003 — Relocate training paths to AGRILENS_5.0.0 workspace; verify kiosk and trainer
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-18 |
+| Application version | 5.0.0 (unchanged: only training configs, docs and a lock file changed; no shipped file) |
+| Category | Dataset/training |
+| Description | Training configs and scripts point at Model_Trainer_Program in the AGRILENS_5.0.0 workspace; TRAINING.md dataset and cache paths updated. Kiosk and trainer verified after the move. |
+| Reason | The projects were moved from D:\AGRILENS_Training to the OneDrive AGRILENS_5.0.0 folder. |
+| Files affected | documentation/technical/TRAINING.md, requirements-lock.txt, training/configurations/make_configs.py, training/configurations/multicrop1_R1_s42.yaml, training/configurations/multicrop1_R1_s43.yaml, training/configurations/multicrop1_R2_s42.yaml, training/configurations/multicrop1_R2_s43.yaml, training/experiments/mango5_exp001/configs/A_frozen_head_s42.yaml, training/experiments/mango5_exp001/configs/A_frozen_head_s42_repro.yaml, training/experiments/mango5_exp001/configs/A_frozen_head_s43.yaml, training/experiments/mango5_exp001/configs/A_frozen_head_s44.yaml, training/experiments/mango5_exp001/configs/B_partial_ft_s42.yaml ... |
+| Tests executed | pytest -q (Kiosk .venv); train_integrated.py smoke run (64 samples, 1 epoch, temp output); verify_dataset; SHA256SUMS check of AGRILENS_RaspberryPi; 20 s launch of AGRILENS_RaspberryPi/main.py |
+| Test outcome | 183 tests passed; smoke training completed with all outputs; dataset verified (24 classes); 38/38 checksums match; app stayed running 20 s without errors |
+| Documentation updated | documentation/technical/TRAINING.md |
+| Known risks | Dataset build tools under datasets/dataset_tools and several records still name D:\AGRILENS_Training (historical; the tools would fail if re-run). Model training downloads pretrained weights from Hugging Face unless cached. |
+| Commit | pending |
+
+### CR-0004 — AGRILENS 5.1.0: C270 capture at 1280x720 (MJPG) with 640x480 fallback
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-18 |
+| Application version | 5.1.0 (minor, from 5.0.0: new backward-compatible camera functionality and a new configuration key; model unchanged) |
+| Category | Hardware |
+| Description | `Camera.detect_webcam` requests `cam_resolution` (default `1280x720`, the C270 maximum) in MJPG and retries the same port at 640x480 if no frames arrive; the delivered size is shown in the status bar. New config key `cam_resolution` (`1280x720` or `640x480`, validated, saved with the other settings). Package rebuilt as AGRILENS-5.1.0; release record written. Tests that pinned 5.0.0 as the current package were made version-relative; the exhibition kit test now uses the published 5.0.0 package (commit 9017320), because the EXPISCOR kit is 5.0.0-specific. |
+| Reason | Owner request (2026-11-18): configure the camera to the maximum possible resolution and publish the change by OTA. |
+| Files affected | application/main.py, application/configuration/kiosk_config.default.json, deployment/raspberry_pi/HOW_TO_RUN_ON_RASPBERRY_PI.md, AGRILENS_RaspberryPi/ (main.py, kiosk_config.json, HOW_TO_RUN_ON_RASPBERRY_PI.md, RELEASE_MANIFEST.json, SHA256SUMS), deployment/release_manifests/AGRILENS-5.1.0.json, tests/regression/test_camera.py, tests/regression/test_configuration.py, tests/integration/test_inapp_ota.py, tests/integration/test_ota_publication.py, tests/integration/test_exhibition_kit.py, tests/unit/test_release_5_0_0.py, README.md, HOW_TO.md, documentation/technical/CONFIGURATION.md, documentation/technical/ROLLBACK.md, documentation/release_notes/RELEASE_NOTES_5.1.0.md, tools/governance/governance_rules.json, this register |
+| Tests executed | `python -m pytest -q` (Kiosk .venv, Windows, mocked OpenCV); `build_device_package.py --model-dir models/candidates/agrilens-multicrop-1.0.0` |
+| Test outcome | 196 passed, 0 failed, 0 skipped. Package build: AGRILENS-5.1.0, 38 files, model SHA-256 unchanged. Not tested on a real C270 or Raspberry Pi 5. |
+| Documentation updated | HOW_TO_RUN_ON_RASPBERRY_PI.md (version, camera-resolution troubleshooting), HOW_TO.md (camera setup), CONFIGURATION.md (`cam_resolution`), ROLLBACK.md (5.0.1 rollback is a downgrade for 5.1.0 kiosks), RELEASE_NOTES_5.1.0.md, HOW_TO index. Verified, no change needed: ARCHITECTURE.md, ENGINEERING_GOVERNANCE.md, MODEL_REGISTRY.json (model unchanged) |
+| Known risks | Preview frame rate, CPU load and MJPG decoding on the Raspberry Pi 5 are unmeasured; diagnosis behaviour on live 1280x720 captures is unvalidated (model and gates validated on image files). Kiosks on 5.1.0 refuse AGRILENS-5.0.1-rollback; a fleet rollback needs a release above 5.1.0. Per-kiosk mitigation: `cam_resolution` = `640x480` in ~/.agrilens_kiosk_config.json. |
+| Commit | pending |

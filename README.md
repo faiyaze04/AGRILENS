@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Application | AGRILENS **5.0.0** (release candidate, not yet published) |
+| Application | AGRILENS **<!-- agl:version -->5.1.0<!-- /agl:version -->** (published to GitHub `main` on 2026-11-17 and delivered by OTA; Raspberry Pi 5 / Logitech C270 validation pending) |
 | OTA release id | `AGRILENS-5.0.0` |
 | Model | `AGRILENS-MULTICROP` **1.0.0**, MobileNetV4-Conv-Small, single-file ONNX (~10 MB), 24 classes |
 | Dataset | `AGL-MULTICROP-MD` **1.0.0** (frozen master dataset, stored outside the repository) |
@@ -10,7 +10,7 @@
 | Target hardware | Raspberry Pi 5 + Waveshare 7" touch display (1024×600) + USB webcam (Logitech C270); Windows/Linux PC for development |
 | Partner | Gundecha Education Academy ([gundechaedu.org](https://www.gundechaedu.org/)) |
 
-AGRILENS is an offline Tkinter touch kiosk. A farmer photographs a leaf (or picks a file), adjusts the crop box and taps **DIAGNOSE NOW**. The ONNX model runs a six-view logit ensemble, and three rejection gates (confidence, top-2 margin, maximum logit) refuse images the model should not answer. The main screen is bilingual (English / Hindi). Release status, test results and known limitations are in [`documentation/release_notes/RELEASE_NOTES_5.0.0.md`](documentation/release_notes/RELEASE_NOTES_5.0.0.md).
+AGRILENS is an offline Tkinter touch kiosk. A farmer photographs a leaf (or picks a file), adjusts the crop box and taps **DIAGNOSE NOW**. The ONNX model runs a six-view logit ensemble, and three rejection gates (confidence, top-2 margin, maximum logit) refuse images the model should not answer. The main screen is bilingual (English / Hindi). Release status, test results and known limitations are in [`documentation/release_notes/RELEASE_NOTES_5.0.0.md`](documentation/release_notes/RELEASE_NOTES_5.0.0.md); every significant change is listed in [`documentation/CHANGE_REGISTER.md`](documentation/CHANGE_REGISTER.md).
 
 ## Supported classes (24, unchanged from 4.9.4, same order as `labels.txt`)
 
@@ -33,7 +33,7 @@ training/               scripts/, configurations/, evaluation/, experiments/, re
 deployment/             ota/ (updater, publisher), raspberry_pi/ (setup, run, rollback, guide), packaging/ (package builders), rollback/ (prepared 5.0.1 rollback release)
 documentation/          technical/, release_notes/, history/, hardware/
 tests/                  unit/, integration/, regression/ (with the 4.9.4 baseline)
-tools/                  migration/, validation/, development/
+tools/                  governance/ (quality gate, hooks), migration/, validation/, development/
 archive/                retired tools and the legacy MobileNetV2 experiment
 AGRILENS_RaspberryPi/   GENERATED OTA publication folder read by deployed kiosks. Do not edit; build it with deployment/packaging/build_device_package.py
 ```
@@ -56,16 +56,7 @@ Raspberry Pi 5: see [`documentation/technical/INSTALLATION.md`](documentation/te
 
 ## Documentation
 
-| Topic | File |
-|---|---|
-| Architecture, OTA design | `documentation/technical/ARCHITECTURE.md` |
-| Installation | `documentation/technical/INSTALLATION.md` |
-| Rollback | `documentation/technical/ROLLBACK.md` |
-| Dataset | `datasets/master/AGL-MULTICROP-MD/DATASET_CARD.md` |
-| Training and evaluation | `documentation/technical/TRAINING.md`, `training/reports/agrilens-multicrop-1.0.0/` |
-| Release notes and limitations | `documentation/release_notes/RELEASE_NOTES_5.0.0.md` |
-| Publication procedure | `documentation/release_notes/GITHUB_PUBLICATION_INSTRUCTIONS_5.0.0.md` |
-| Version history up to 4.9.4 | `documentation/history/` |
+Start with [`HOW_TO.md`](HOW_TO.md): it is the navigation guide (installation, running, camera, diagnosis, configuration, model, training, OTA, rollback, troubleshooting) and holds the checked index of every document. Engineering rules (versioning, hooks, quality gate, change register): [`documentation/governance/ENGINEERING_GOVERNANCE.md`](documentation/governance/ENGINEERING_GOVERNANCE.md).
 
 ## Disclaimer
 

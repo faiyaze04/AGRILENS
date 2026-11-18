@@ -6,9 +6,9 @@ num_classes: 24
 dataset:
   id: AGL-MULTICROP-MD
   version: 1.0.0
-  root: D:\AGRILENS_Training\datasets\AGL-MULTICROP-MD\AGL-MULTICROP-MD-1.0.0
-cache: D:\AGRILENS_Training\training_cache\AGL-MULTICROP-MD-1.0.0
-output_dir: D:\AGRILENS_Training\training_runs\agrilens-multicrop-1.0.0
+  root: D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\datasets\AGL-MULTICROP-MD\AGL-MULTICROP-MD-1.0.0
+cache: D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\training_cache\AGL-MULTICROP-MD-1.0.0
+output_dir: D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\training_runs\agrilens-multicrop-1.0.0
 data:
   train: splits/train.csv
   validation: splits/val.csv (selection and early stopping only)

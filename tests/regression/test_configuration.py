@@ -149,4 +149,26 @@ def test_stored_precedence_matrix_still_matches(app):
         matrix = json.load(f)
     assert matrix["cases"]
     for case in matrix["cases"]:
-        assert eff(app, case["app_dir_file"], case["user_file"]) == case["effective"], case["name"]
+        # cam_resolution (added in 5.1.0) is not in the legacy matrix; it takes its default unless a file sets it.
+        expected = dict(case["effective"])
+        expected.setdefault("cam_resolution", app.DEFAULT_CONFIG["cam_resolution"])
+        assert eff(app, case["app_dir_file"], case["user_file"]) == expected, case["name"]
+
+
+# ---- camera capture resolution (5.1.0) -----------------------------------------------------------------
+
+def test_cam_resolution_defaults_to_c270_maximum(app):
+    assert eff(app)["cam_resolution"] == "1280x720"
+    assert app.parse_camera_resolution(None) == (1280, 720)
+
+
+@pytest.mark.parametrize("given,expected", [
+    ("640x480", "640x480"), ("1280x720", "1280x720"), (" 640X480 ", "640x480"),
+    ("1920x1080", "1280x720"), ("abc", "1280x720"), (None, "1280x720"), (720, "1280x720"),
+])
+def test_cam_resolution_is_validated(app, given, expected):
+    assert eff(app, repo={"cam_resolution": given})["cam_resolution"] == expected
+
+
+def test_user_file_cam_resolution_wins(app):
+    assert eff(app, repo={"cam_resolution": "1280x720"}, user={"cam_resolution": "640x480"})["cam_resolution"] == "640x480"

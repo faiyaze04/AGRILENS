@@ -2,7 +2,7 @@
  "models": [
   {
    "id": "AGRILENS-MULTICROP 1.0.0",
-   "role": "release model of AGRILENS 5.0.0 (release candidate; not deployed)",
+   "role": "release model of AGRILENS 5.0.0; published to GitHub main on 2026-11-17 (OTA release AGRILENS-5.0.0, change CR-0001). Raspberry Pi 5 / C270 validation pending; promotion to models/production/ pending",
    "path": "models/candidates/agrilens-multicrop-1.0.0/",
    "sha256": "776d08ac669d0ea8874a458bfb6ea2657c5d40525d30021c7c8c1204d520332b",
    "bytes": 10067999,
@@ -15,7 +15,7 @@
   },
   {
    "id": "AGRILENS-24CLASS 4.9.4",
-   "role": "current production model; rollback target",
+   "role": "previous production model (AGRILENS 4.9.4); fleet rollback target via the prepared release AGRILENS-5.0.1-rollback",
    "path": "models/production/agrilens-24class-4.9.4/",
    "sha256": "0b5bb7fb3916a7c1138f90cfc9abfdc130f06495a34282d474e52718b072ff80"
   },
