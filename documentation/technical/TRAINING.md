@@ -15,7 +15,7 @@ the dataset tools and the training experiments live in the separate **Model Trai
 | `trainer\experiments\`, `trainer\legacy_4.9.4\` | Earlier experiments and the 4.9.4 training code (history) |
 | `datasets\`, `training_cache\`, `training_runs\`, `exports\` | Frozen datasets, image cache, training output, ONNX exports |
 
-The trainer has its own Python environment (`Model_Trainer_Program\mango_sar_mld1\.venv_train`, pinned in
+The trainer has its own Python environment (`Model_Trainer_Program\.venv_train`, pinned in
 `trainer\requirements-train-lock.txt`) and needs nothing from this repository. It is its own git repository (code, configurations and records only; datasets, images, caches, checkpoints and environments are excluded by its `.gitignore`); on GitHub it is the private repository https://github.com/faiyaze04/AGRILENS-Model-Trainer. The history of these files up to the move is in this
 repository's git history (former folders training/scripts, training/configurations, training/experiments, training/legacy_4.9.4 and
 datasets/dataset_tools, removed in CR-0006).
