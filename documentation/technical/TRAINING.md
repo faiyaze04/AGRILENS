@@ -3,7 +3,7 @@
 ## Master dataset
 
 `AGL-MULTICROP-MD 1.0.0` is the single authoritative dataset for all four crops. It is stored outside git at
-`D:\AGRILENS_Training\datasets\AGL-MULTICROP-MD\AGL-MULTICROP-MD-1.0.0` (29,982 files listed in `FREEZE_CHECKSUMS.sha256`, freeze-file SHA-256 `12449a5c…5f8c0a`).
+`<AGRILENS_5.0.0>\Model_Trainer_Program\datasets\AGL-MULTICROP-MD\AGL-MULTICROP-MD-1.0.0` (29,982 files listed in `FREEZE_CHECKSUMS.sha256`, freeze-file SHA-256 `12449a5c…5f8c0a`).
 Its manifests and card are mirrored in `datasets/master/AGL-MULTICROP-MD/`. AGL-MANGO-MD (v1.0.0 and v1.1.0-rc1) remains the frozen Mango provenance baseline; it is not a second training dataset.
 
 | Tool | Purpose |
@@ -13,7 +13,7 @@ Its manifests and card are mirrored in `datasets/master/AGL-MULTICROP-MD/`. AGL-
 | `datasets/dataset_tools/freeze_agl_multicrop_md.py` | Writes `FREEZE_CHECKSUMS.sha256`. |
 | `datasets/dataset_tools/verify_agl_multicrop_md.py` | Read-only check of checksums, counts, splits, leakage and provenance. |
 
-Training never copies or modifies the dataset. Scripts read `splits/*.csv` and `manifests/*.csv` of the named version, refuse to start if any of them differs from `FREEZE_CHECKSUMS.sha256` (`training/scripts/agl_common.py`), and record the hashes in each run's `run_info.json`. The trainer opens the test split files only to assert that their image ids are disjoint from train; it never loads test images. Decoded images are cached as `.npy` in `D:\AGRILENS_Training\training_cache\AGL-MULTICROP-MD-1.0.0` (`training/scripts/prepare_cache.py`); the cache is disposable.
+Training never copies or modifies the dataset. Scripts read `splits/*.csv` and `manifests/*.csv` of the named version, refuse to start if any of them differs from `FREEZE_CHECKSUMS.sha256` (`training/scripts/agl_common.py`), and record the hashes in each run's `run_info.json`. The trainer opens the test split files only to assert that their image ids are disjoint from train; it never loads test images. Decoded images are cached as `.npy` in `<AGRILENS_5.0.0>\Model_Trainer_Program\training_cache\AGL-MULTICROP-MD-1.0.0` (`training/scripts/prepare_cache.py`); the cache is disposable.
 
 Splits are by leaf group, derivative/copy group and split unit, with no group in two splits. `test_heldout_device` holds Mango Anthracnose images from capture devices that do not appear in train or val.
 

@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-RC = r"D:\AGRILENS_Training\AGL-MANGO-MD\AGL-MANGO-MD-v1.1.0-rc1"
-EXP = r"D:\AGRILENS_Training\AGL-MANGO-MD\experiments\mango5_exp001"
+RC = r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD\AGL-MANGO-MD-v1.1.0-rc1"
+EXP = r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD\experiments\mango5_exp001"
 CACHE = EXP + r"\cache"
 CLASSES = ["MNG001", "MNG002", "MNG005", "MNG006", "MNG007"]
 CLASS_NAMES = {"MNG001": "Anthracnose", "MNG002": "Bacterial Canker", "MNG005": "Gall Midge (provisional)", "MNG006": "Healthy", "MNG007": "Powdery Mildew"}

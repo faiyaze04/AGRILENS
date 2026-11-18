@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the YAML configuration of every run. Edit here, regenerate, commit the output with the results (configs are copied into each run folder)."""
 import os, yaml
-EXP = r"D:\AGRILENS_Training\AGL-MANGO-MD\experiments\mango5_exp001"
+EXP = r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD\experiments\mango5_exp001"
 
 
 def base(run_id, mode, seed):
@@ -9,7 +9,7 @@ def base(run_id, mode, seed):
         "run_id": run_id, "mode": mode, "seed": seed, "experiment": "mango5-exp001",
         "authorisation": {"training_authorised": True, "authorised_by": "user", "authorised_on": "2026-11-17",
                           "scope": "controlled five-class experimental training; no production change, no deployment"},
-        "dataset": {"id": "AGL-MANGO-MD", "version": "v1.1.0-rc1", "root": r"D:\AGRILENS_Training\AGL-MANGO-MD\AGL-MANGO-MD-v1.1.0-rc1"},
+        "dataset": {"id": "AGL-MANGO-MD", "version": "v1.1.0-rc1", "root": r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD\AGL-MANGO-MD-v1.1.0-rc1"},
         "model": {"name": "mobilenetv4_conv_small.e2400_r224_in1k", "pretrained": "ImageNet (timm)", "num_classes": 5,
                   "classes": ["MNG001_ANTHRACNOSE", "MNG002_BACTERIAL_CANKER", "MNG005_GALL_MIDGE (provisional)", "MNG006_HEALTHY", "MNG007_POWDERY_MILDEW"]},
         "data": {"train_manifest": "splits/train.csv", "val_manifest": "splits/val.csv"},

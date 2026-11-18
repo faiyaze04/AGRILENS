@@ -150,15 +150,15 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "5.0.0"
-BUILD_TIMESTAMP = "2026-11-17 18:00 IST (release candidate)"
+APP_VERSION = "5.1.0"
+BUILD_TIMESTAMP = "2026-11-18 19:24 (development build)"
 MODEL_SHA256 = "776d08ac669d0ea8874a458bfb6ea2657c5d40525d30021c7c8c1204d520332b"
 # Model identity (independent of APP_VERSION). MODEL_SHA256 is verified against the model file by deployment/packaging/build_device_package.py.
 MODEL_ID = "AGRILENS-MULTICROP"
 MODEL_VERSION = "1.0.0"
 MODEL_NUM_CLASSES = 24
 DATASET_VERSION = "AGL-MULTICROP-MD 1.0.0"
-OTA_RELEASE_ID = "AGRILENS-5.0.0"
+OTA_RELEASE_ID = "AGRILENS-5.1.0"
 # Rejection-gate calibration of the model above, set on validation data only (training/evaluation/). Used only when the loaded model matches MODEL_SHA256.
 MODEL_CALIBRATION_CONFIDENCE = 0.40
 MODEL_CALIBRATION_MARGIN = 0.12
@@ -287,8 +287,22 @@ DEFAULT_CONFIG = {
     "cam_flip_v": False,
     "cam_auto_exp": True,
     "cam_auto_wb": True,
+    "cam_resolution": "1280x720",
     "language": "EN",
 }
+# Capture resolutions the kiosk may request, highest first. 1280x720 is the Logitech C270 maximum;
+# 640x480 is the fallback (and the 5.0.0 behaviour) when the camera cannot deliver the requested mode.
+CAMERA_RESOLUTIONS = ("1280x720", "640x480")
+CAMERA_FALLBACK_RESOLUTION = (640, 480)
+
+
+def parse_camera_resolution(value):
+    """Returns (width, height) for a supported 'WxH' string, else the default resolution."""
+    text = str(value).strip().lower() if value is not None else ""
+    if text not in CAMERA_RESOLUTIONS:
+        text = DEFAULT_CONFIG["cam_resolution"]
+    w, h = text.split("x")
+    return int(w), int(h)
 
 def _clamp_num(val, default, lo, hi, as_int=False):
     try:
@@ -374,6 +388,7 @@ def load_kiosk_config():
     for bkey, bdef in (("cam_flip_h", False), ("cam_flip_v", False), ("cam_auto_exp", True), ("cam_auto_wb", True)):
         val = cfg.get(bkey, bdef)
         cfg[bkey] = val if isinstance(val, bool) else bdef
+    cfg["cam_resolution"] = "%dx%d" % parse_camera_resolution(cfg.get("cam_resolution"))
     cfg["language"] = "HI" if str(cfg.get("language", "EN")).upper() == "HI" else "EN"
     return cfg
 
@@ -969,6 +984,8 @@ class Camera:
         self.backend = "none"
         self.width = 640
         self.height = 480
+        # Requested capture mode (from cam_resolution); detect_webcam falls back to 640x480 if it fails.
+        self.resolution = parse_camera_resolution(DEFAULT_CONFIG["cam_resolution"])
         self.device_name = "USB Camera"
         self.fail_count = 0
 
@@ -1076,21 +1093,34 @@ class Camera:
                         if not c.isOpened():
                             continue
 
-                        # Configure 640x480 resolution & single-frame buffer before reading
-                        c.set(self.cv2.CAP_PROP_FRAME_WIDTH, 640)
-                        c.set(self.cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                        try:
-                            c.set(self.cv2.CAP_PROP_BUFFERSIZE, 1)
-                        except Exception:
-                            pass
-
-                        # Multi-frame warmup: Allow auto-exposure (AEC) and auto-gain (AGC) to stabilize
+                        # Request the configured resolution (default 1280x720, the C270 maximum); if the
+                        # camera delivers no frames in that mode, retry the same port at 640x480.
+                        modes = [tuple(self.resolution)]
+                        if modes[0] != CAMERA_FALLBACK_RESOLUTION:
+                            modes.append(CAMERA_FALLBACK_RESOLUTION)
                         ok, frame = False, None
-                        for _ in range(4):
-                            ok, frame = c.read()
+                        for req_w, req_h in modes:
+                            if (req_w, req_h) != CAMERA_FALLBACK_RESOLUTION:
+                                # MJPG keeps 1280x720 at full frame rate over USB 2.0 (YUYV is ~7.5 fps on the C270)
+                                try:
+                                    c.set(self.cv2.CAP_PROP_FOURCC, self.cv2.VideoWriter_fourcc(*"MJPG"))
+                                except Exception:
+                                    pass
+                            c.set(self.cv2.CAP_PROP_FRAME_WIDTH, req_w)
+                            c.set(self.cv2.CAP_PROP_FRAME_HEIGHT, req_h)
+                            try:
+                                c.set(self.cv2.CAP_PROP_BUFFERSIZE, 1)
+                            except Exception:
+                                pass
+
+                            # Multi-frame warmup: Allow auto-exposure (AEC) and auto-gain (AGC) to stabilize
+                            for _ in range(4):
+                                ok, frame = c.read()
+                                if ok and frame is not None and frame.size > 0:
+                                    break
+                                time.sleep(0.025)
                             if ok and frame is not None and frame.size > 0:
                                 break
-                            time.sleep(0.025)
 
                         if ok and frame is not None and frame.size > 0:
                             h, w = frame.shape[:2]
@@ -1849,6 +1879,7 @@ class AgriLensApp:
         self.camera.flip_v = bool(cfg.get("cam_flip_v", False))
         self.camera.auto_exp = bool(cfg.get("cam_auto_exp", True))
         self.camera.auto_wb = bool(cfg.get("cam_auto_wb", True))
+        self.camera.resolution = parse_camera_resolution(cfg.get("cam_resolution"))
 
         self.classifier = None
         self.plants = ["Apple", "Mango", "Potato", "Tomato"]
@@ -3539,6 +3570,7 @@ class AgriLensApp:
             "cam_flip_v": bool(self.camera.flip_v),
             "cam_auto_exp": bool(self.camera.auto_exp),
             "cam_auto_wb": bool(self.camera.auto_wb),
+            "cam_resolution": "%dx%d" % tuple(self.camera.resolution),
             "language": getattr(self, "lang", "EN"),
             "calibration_model_sha256": getattr(getattr(self, "classifier", None), "model_sha256", "") or "",
         }

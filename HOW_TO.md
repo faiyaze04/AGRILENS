@@ -10,7 +10,7 @@ AGRILENS is an offline touch kiosk that diagnoses leaf diseases of Apple, Mango,
 
 | Item | Value |
 |---|---|
-| Application | **<!-- agl:version -->5.0.0<!-- /agl:version -->** (authoritative: `APP_VERSION` in `application/main.py`) |
+| Application | **<!-- agl:version -->5.1.0<!-- /agl:version -->** (authoritative: `APP_VERSION` in `application/main.py`) |
 | On GitHub `main` / OTA | 5.0.0 since 2026-11-17 (`documentation/CHANGE_REGISTER.md`, `CR-0001`) |
 | Model | AGRILENS-MULTICROP 1.0.0 (SHA-256 `776d08ac…0332b`) |
 | Validation status | Desktop only. Raspberry Pi 5, C270 and expert validation not yet performed. One release criterion (C2, Mango) failed and was accepted as a recorded deviation. |
@@ -37,7 +37,7 @@ On the Pi: `cd ~/AGRILENS_RaspberryPi && ./run_agrilens.sh` (runs one OTA check,
 
 ## Camera setup
 
-- Logitech C270 on USB. The kiosk opens it with Video4Linux2 at 640×480. Higher-resolution capture is planned, not implemented.
+- Logitech C270 on USB. Since 5.1.0 the kiosk opens it with Video4Linux2 at 1280×720 (the C270 maximum, MJPG) and falls back to 640×480 if the camera delivers no frames in that mode. Set `cam_resolution` to `640x480` for the 5.0.0 behaviour ([`documentation/technical/CONFIGURATION.md`](documentation/technical/CONFIGURATION.md)).
 - The user must be in the `video` group (`sudo usermod -a -G video $USER`). A camera plugged in after start-up: **ADMIN → DETECT WEBCAM**.
 - Focus ring and cover for the C270: `documentation/hardware/C270_focus_ring.stl`, `documentation/hardware/C270_cover.stl`. Use **ADMIN → CAMERA CONTROL PANEL** (focus bar, focus peaking, exposure, white balance, zoom, flips) to set focus.
 - Camera settings and their ranges: [`documentation/technical/CONFIGURATION.md`](documentation/technical/CONFIGURATION.md).
@@ -112,6 +112,7 @@ Kiosks download a fixed file list from `AGRILENS_RaspberryPi/` on GitHub `main` 
 | [`documentation/technical/TRAINING.md`](documentation/technical/TRAINING.md) | Dataset, training, selection, calibration and release evaluation |
 | [`documentation/technical/field_validation_protocol_phase_A.md`](documentation/technical/field_validation_protocol_phase_A.md) | Field (C270) accuracy validation protocol |
 | [`datasets/master/AGL-MULTICROP-MD/DATASET_CARD.md`](datasets/master/AGL-MULTICROP-MD/DATASET_CARD.md) | Dataset card AGL-MULTICROP-MD 1.0.0 (structure, sources, licences) |
+| [`documentation/release_notes/RELEASE_NOTES_5.1.0.md`](documentation/release_notes/RELEASE_NOTES_5.1.0.md) | Release notes 5.1.0: camera capture at 1280x720 with 640x480 fallback |
 | [`documentation/release_notes/RELEASE_NOTES_5.0.0.md`](documentation/release_notes/RELEASE_NOTES_5.0.0.md) | Release notes 5.0.0: changes, evaluation, known limitations |
 | [`documentation/CHANGE_REGISTER.md`](documentation/CHANGE_REGISTER.md) | Change register (all significant changes from 2026-11-17) |
 | [`documentation/governance/ENGINEERING_GOVERNANCE.md`](documentation/governance/ENGINEERING_GOVERNANCE.md) | Versioning policy, hooks, quality checks, documentation rules |

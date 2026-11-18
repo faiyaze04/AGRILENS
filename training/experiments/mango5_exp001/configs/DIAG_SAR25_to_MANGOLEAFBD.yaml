@@ -10,7 +10,7 @@ authorisation:
 dataset:
   id: AGL-MANGO-MD
   version: v1.1.0-rc1
-  root: D:\AGRILENS_Training\AGL-MANGO-MD\AGL-MANGO-MD-v1.1.0-rc1
+  root: D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD\AGL-MANGO-MD-v1.1.0-rc1
 model:
   name: mobilenetv4_conv_small.e2400_r224_in1k
   pretrained: ImageNet (timm)

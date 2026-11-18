@@ -11,6 +11,8 @@ There are two kinds of rollback. Pick the one that matches the problem.
 
 Every updater (4.9.x and 5.0.0) refuses to install an `APP_VERSION` that is lower than the installed one. Re-publishing 4.9.4 on GitHub `main` would therefore be ignored by kiosks already on 5.0.0. The prepared release in `deployment/rollback/AGRILENS-5.0.1-rollback/` contains the 4.9.4 application code and the 4.9.4 model with only `APP_VERSION` raised to `5.0.1`, so the updaters accept it.
 
+**After 5.1.0 is published:** kiosks on 5.1.0 refuse 5.0.1 as a downgrade, so `AGRILENS-5.0.1-rollback` only reaches kiosks still on 5.0.0. A fleet rollback of 5.1.0 needs a new release numbered above 5.1.0 (for example 5.1.1 built from the 5.0.0 sources, or 5.1.1 with `cam_resolution` defaulting to `640x480`). A single kiosk can return to 5.0.0 with `rollback.sh`, because the 5.0.0 updater keeps `rollback/v5.0.0/` when it installs 5.1.0. To return one kiosk to 640×480 capture without any rollback, set `"cam_resolution": "640x480"` in `~/.agrilens_kiosk_config.json`.
+
 ## Single-device rollback
 
 The 5.0.0 updater copies every file it replaces into `rollback/v<previous version>/` inside the application folder before replacing it. A kiosk updated from 4.9.4 therefore has `rollback/v4.9.4/`.

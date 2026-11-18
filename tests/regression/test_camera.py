@@ -33,7 +33,14 @@ class FakeCap:
             raise RuntimeError("device error")
         if self.behaviour == "fail":
             return False, None
-        return True, np.full((480, 640, 3), 120, dtype=np.uint8)
+        w = int(self.props.get(FakeCV2.CAP_PROP_FRAME_WIDTH, 640))
+        h = int(self.props.get(FakeCV2.CAP_PROP_FRAME_HEIGHT, 480))
+        if self.behaviour == "vga_only":
+            if (w, h) != (640, 480):
+                return False, None       # camera that cannot stream the HD mode
+        elif self.behaviour == "max_vga":
+            w, h = 640, 480              # camera that silently keeps 640x480
+        return True, np.full((h, w, 3), 120, dtype=np.uint8)
 
     def release(self):
         self.released += 1
@@ -43,7 +50,12 @@ class FakeCV2:
     CAP_DSHOW, CAP_ANY, CAP_V4L2 = 700, 0, 200
     CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT, CAP_PROP_BUFFERSIZE = 3, 4, 38
     CAP_PROP_AUTO_EXPOSURE, CAP_PROP_BACKLIGHT, CAP_PROP_AUTO_WB, CAP_PROP_WB_TEMPERATURE = 21, 32, 44, 45
+    CAP_PROP_FOURCC = 6
     COLOR_BGR2RGB = 4
+
+    @staticmethod
+    def VideoWriter_fourcc(*chars):
+        return sum(ord(ch) << (8 * i) for i, ch in enumerate(chars))
 
     def __init__(self, ports):
         self.ports = ports          # {port: behaviour}
@@ -79,11 +91,40 @@ def test_detect_fails_cleanly_when_no_camera(app):
 
 
 def test_detect_selects_first_working_port_and_configures_it(app):
+    # 5.1.0: the default request is 1280x720 (C270 maximum) in MJPG.
     cam = make_camera(app, {1: "ok"})
     ok, msg = cam.detect_webcam()
     assert ok and cam.port == 1 and cam.last_working_port == 1
-    assert cam.kind.startswith("USB Camera") and (cam.width, cam.height) == (640, 480)
-    assert cam.cap.props[FakeCV2.CAP_PROP_FRAME_WIDTH] == 640 and cam.cap.props[FakeCV2.CAP_PROP_BUFFERSIZE] == 1
+    assert cam.kind.startswith("USB Camera") and (cam.width, cam.height) == (1280, 720)
+    assert cam.cap.props[FakeCV2.CAP_PROP_FRAME_WIDTH] == 1280 and cam.cap.props[FakeCV2.CAP_PROP_FRAME_HEIGHT] == 720
+    assert cam.cap.props[FakeCV2.CAP_PROP_BUFFERSIZE] == 1
+    assert cam.cap.props[FakeCV2.CAP_PROP_FOURCC] == FakeCV2.VideoWriter_fourcc(*"MJPG")
+
+
+def test_detect_falls_back_to_640x480_when_hd_delivers_no_frames(app):
+    cam = make_camera(app, {0: "vga_only"})
+    ok, _msg = cam.detect_webcam()
+    assert ok and cam.port == 0 and (cam.width, cam.height) == (640, 480)
+    assert cam.cap.props[FakeCV2.CAP_PROP_FRAME_WIDTH] == 640
+    assert cam.read().size == (640, 480)
+
+
+def test_detect_reports_the_size_the_camera_actually_delivers(app):
+    cam = make_camera(app, {0: "max_vga"})
+    assert cam.detect_webcam()[0] and (cam.width, cam.height) == (640, 480) and "640x480" in cam.kind
+
+
+def test_configured_640x480_is_requested_without_hd_attempt(app):
+    cam = make_camera(app, {0: "ok"})
+    cam.resolution = (640, 480)
+    assert cam.detect_webcam()[0] and (cam.width, cam.height) == (640, 480)
+    assert FakeCV2.CAP_PROP_FOURCC not in cam.cap.props
+
+
+def test_hd_frames_are_returned_at_full_size(app):
+    cam = make_camera(app, {0: "ok"})
+    cam.detect_webcam()
+    assert cam.read().size == (1280, 720)
 
 
 def test_port_that_opens_but_never_delivers_frames_is_released(app):
@@ -102,6 +143,8 @@ def test_last_working_port_is_probed_first(app):
 
 def test_read_returns_pil_frame(app):
     cam = make_camera(app, {0: "ok"})
+    cam.detect_webcam()
+    cam.resolution = (640, 480)
     cam.detect_webcam()
     img = cam.read()
     assert img is not None and img.size == (640, 480) and img.mode == "RGB"

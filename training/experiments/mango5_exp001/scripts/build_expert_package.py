@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 sys.path.insert(0, os.path.dirname(__file__))
 from common import *
 
-ROOT = r"D:\AGRILENS_Training\AGL-MANGO-MD"; PK = ROOT + r"\expert_review_package"; KEY = ROOT + r"\expert_review_package_KEY"
+ROOT = r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD"; PK = ROOT + r"\expert_review_package"; KEY = ROOT + r"\expert_review_package_KEY"
 for d in (PK + r"\images", KEY): os.makedirs(d, exist_ok=True)
 EA = EXP + r"\error_analysis"; rng = random.Random(7)
 H = pd.read_csv(EA + r"\error_table_heldout_device.csv"); K = pd.read_csv(EA + r"\error_table_known_device.csv")

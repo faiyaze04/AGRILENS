@@ -9,7 +9,7 @@ from common import *
 from sklearn.metrics import roc_auc_score
 
 OUT = EXP + r"\error_analysis"; FIG = OUT + r"\figures"; os.makedirs(FIG, exist_ok=True)
-V0 = r"D:\AGRILENS_Training\AGL-MANGO-MD\AGL-MANGO-MD-v1.0.0"
+V0 = r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD\AGL-MANGO-MD-v1.0.0"
 man = pd.read_csv(RC + r"\manifests\master_image_manifest.csv", low_memory=False)
 cand = pd.read_csv(V0 + r"\work\candidates.csv", low_memory=False); F = np.load(V0 + r"\work\features_1280.npy"); F = F / np.maximum(np.linalg.norm(F, axis=1, keepdims=True), 1e-9)
 cand["row"] = np.arange(len(cand)); key = cand.set_index(["source", "src_rel"]).row

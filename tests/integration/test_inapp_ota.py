@@ -14,7 +14,7 @@ import threading as _threading
 
 import pytest
 
-from test_ota_publication import FETCHED_BY_4_9_4, LEGACY, PKG, PROD_MODEL, const, serve, sha  # noqa: F401  (serve is a fixture)
+from test_ota_publication import FETCHED_BY_4_9_4, LEGACY, PKG, PROD_MODEL, const, next_patch, serve, sha  # noqa: F401  (serve is a fixture)
 from conftest import ROOT
 
 
@@ -134,13 +134,16 @@ def test_inapp_first_hop_from_4_9_4_code(serve, tmp_path, monkeypatch):
 
 
 def test_inapp_5_0_0_to_5_0_1_keeps_rollback_and_model(serve, tmp_path, monkeypatch):
+    # Historical name: current package -> a synthetic release one PATCH above it (5.0.0 -> 5.0.1 when written).
+    cur = const(os.path.join(PKG, "main.py"), "APP_VERSION")
+    nxt = next_patch(cur)
     dev, home = make_device(tmp_path, PKG)
     before_main, before_model = sha(dev / "main.py"), sha(dev / "agrilens.onnx")
-    stub, texts = run_inapp(dev / "main.py", serve(str(package_variant(tmp_path, "pkg501", "5.0.1"))), monkeypatch, home)
-    assert "OTA Updated to v5.0.1" in texts and stub.restarted, texts
-    assert const(dev / "main.py", "APP_VERSION") == "5.0.1"
-    assert sha(dev / "rollback" / "v5.0.0" / "main.py") == before_main
-    assert sha(dev / "agrilens.onnx") == before_model and not (dev / "rollback" / "v5.0.0" / "agrilens.onnx").exists()   # same MODEL_SHA256: no model download
+    stub, texts = run_inapp(dev / "main.py", serve(str(package_variant(tmp_path, "pkgnext", nxt))), monkeypatch, home)
+    assert ("OTA Updated to v" + nxt) in texts and stub.restarted, texts
+    assert const(dev / "main.py", "APP_VERSION") == nxt
+    assert sha(dev / "rollback" / ("v" + cur) / "main.py") == before_main
+    assert sha(dev / "agrilens.onnx") == before_model and not (dev / "rollback" / ("v" + cur) / "agrilens.onnx").exists()   # same MODEL_SHA256: no model download
 
 
 def test_inapp_boot_update_respects_ota_hold(serve, tmp_path, monkeypatch):

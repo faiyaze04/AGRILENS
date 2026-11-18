@@ -5,10 +5,12 @@ backup of a 4.9.4 installation -> side-by-side 5.0.0 installation -> simulated 5
 Raspberry Pi specifics (vcgencmd, systemd, pkill) are absent here and are not exercised.
 """
 import hashlib
+import io
 import os
 import shutil
 import subprocess
 import sys
+import zipfile
 
 import pytest
 
@@ -18,6 +20,24 @@ KIT_SRC = os.path.join(ROOT, "deployment", "exhibition")
 PKG = os.path.join(ROOT, "AGRILENS_RaspberryPi")
 LEGACY = os.path.join(ROOT, "tests", "regression", "baseline", "legacy_4.9.4")
 PROD_MODEL = os.path.join(ROOT, "models", "production", "agrilens-24class-4.9.4", "agrilens.onnx")
+# The EXPISCOR 2026 kit is built for release 5.0.0 only (folder names, checklist, release-id check in pi_install_side_by_side.sh).
+# Since 5.1.0 the working package is newer, so the kit is tested with the published 5.0.0 package (GitHub main at 5.0.0).
+RELEASE_5_0_0_COMMIT = "9017320564592154fc7bc32f07244e23a9ff0a8c"
+
+
+def _extract_5_0_0_package(dest):
+    r = subprocess.run(["git", "-C", ROOT, "archive", "--format=zip", RELEASE_5_0_0_COMMIT, "AGRILENS_RaspberryPi"], capture_output=True)
+    if r.returncode != 0:
+        pytest.skip("5.0.0 release commit not available: " + r.stderr.decode(errors="replace").strip())
+    with zipfile.ZipFile(io.BytesIO(r.stdout)) as z:
+        for info in z.infolist():
+            if info.is_dir():
+                continue
+            rel = info.filename.split("/", 1)[1]
+            out = os.path.join(dest, *rel.split("/"))
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            with open(out, "wb") as fh:
+                fh.write(z.read(info))
 
 
 def _bash():
@@ -67,7 +87,7 @@ def kiosk(tmp_path):
     (home / ".config" / "autostart" / "agrilens.desktop").write_text("[Desktop Entry]\nExec=old 4.9.4\n")
     kit = tmp_path / "kit"
     shutil.copytree(KIT_SRC, kit)
-    shutil.copytree(PKG, kit / "AGRILENS_5.0.0")
+    _extract_5_0_0_package(str(kit / "AGRILENS_5.0.0"))
     return home, old, kit
 
 
@@ -87,7 +107,7 @@ def test_backup_install_restore_round_trip(kiosk):
     new = home / "AGRILENS_5.0.0"
     assert tree_hashes(old) == before_old                                 # existing installation untouched
     assert (new / "exhibition" / "exhibition_launcher.sh").exists() and (home / ".agrilens_ota_hold").exists()
-    assert hashlib.sha256((new / "agrilens.onnx").read_bytes()).hexdigest() == hashlib.sha256(open(os.path.join(PKG, "agrilens.onnx"), "rb").read()).hexdigest()
+    assert hashlib.sha256((new / "agrilens.onnx").read_bytes()).hexdigest() == hashlib.sha256((kiosk[2] / "AGRILENS_5.0.0" / "agrilens.onnx").read_bytes()).hexdigest()
     r = run(kit / "pi_install_side_by_side.sh", home)
     assert r.returncode != 0 and "already exists" in r.stdout             # never overwrites
     # simulate running 5.0.0: it rewrites the boot entry and the shared settings; a mistake also changes the old folder

@@ -8,8 +8,10 @@ from conftest import ROOT
 
 
 def test_version_identifiers_are_independent(app):
-    assert app.APP_VERSION == "5.0.0"
-    assert app.OTA_RELEASE_ID == "AGRILENS-5.0.0"
+    # Application version is single-sourced (APP_VERSION, written by agl_governance.py bump); 5.0.0 or later, release id derived from it.
+    assert re.fullmatch(r"\d+\.\d+\.\d+", app.APP_VERSION)
+    assert tuple(int(x) for x in app.APP_VERSION.split(".")) >= (5, 0, 0)
+    assert app.OTA_RELEASE_ID == "AGRILENS-" + app.APP_VERSION
     assert (app.MODEL_ID, app.MODEL_VERSION) == ("AGRILENS-MULTICROP", "1.0.0")
     assert app.DATASET_VERSION == "AGL-MULTICROP-MD 1.0.0"
     assert re.fullmatch(r"[0-9a-f]{64}", app.MODEL_SHA256)

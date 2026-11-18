@@ -144,12 +144,20 @@ def test_updated_device_starts_and_ignores_stale_4_9_4_thresholds(serve, device_
 
 
 # ---- second hop: 5.0.0 updater -> synthetic 5.0.1 ------------------------------------------------------------------
+def next_patch(version):
+    """The synthetic next release used for the second hop: current package version with PATCH + 1."""
+    major, minor, patch = (int(x) for x in version.split("."))
+    return "%d.%d.%d" % (major, minor, patch + 1)
+
+
 @pytest.fixture()
 def fake_5_0_1(tmp_path):
-    d = tmp_path / "pkg_5_0_1"
+    # Historical name: a synthetic release one PATCH above the current package (5.0.1 when the package was 5.0.0).
+    d = tmp_path / "pkg_next"
     shutil.copytree(PKG, d)
     m = (d / "main.py").read_text(encoding="utf-8")
-    (d / "main.py").write_text(re.sub(r'^APP_VERSION = "[^"]*"', 'APP_VERSION = "5.0.1"', m, count=1, flags=re.M), encoding="utf-8", newline="\n")
+    nxt = next_patch(const(os.path.join(PKG, "main.py"), "APP_VERSION"))
+    (d / "main.py").write_text(re.sub(r'^APP_VERSION = "[^"]*"', 'APP_VERSION = "%s"' % nxt, m, count=1, flags=re.M), encoding="utf-8", newline="\n")
     return d
 
 
@@ -159,7 +167,7 @@ def test_second_hop_keeps_a_rollback_copy(serve, device_4_9_4, fake_5_0_1):
     before = sha(device_4_9_4 / "main.py")
     r = run_updater(str(device_4_9_4 / "ota_update.sh"), serve(str(fake_5_0_1)), device_4_9_4, home)
     assert r.returncode == 0, r.stderr
-    assert const(device_4_9_4 / "main.py", "APP_VERSION") == "5.0.1"
+    assert const(device_4_9_4 / "main.py", "APP_VERSION") == next_patch(const(os.path.join(PKG, "main.py"), "APP_VERSION"))
     rb = device_4_9_4 / "rollback" / ("v" + const(os.path.join(PKG, "main.py"), "APP_VERSION")) / "main.py"
     assert rb.is_file() and sha(rb) == before
 

@@ -6,7 +6,7 @@ Relabelling rule built in: a correction is only PROPOSED when the expert (or the
 label different from the source label on an adequate image. A proposal never changes data; it needs adjudication and a new dataset version."""
 import argparse, glob, itertools, json, os
 import numpy as np, pandas as pd
-ROOT = r"D:\AGRILENS_Training\AGL-MANGO-MD"
+ROOT = r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD"
 ap = argparse.ArgumentParser(); ap.add_argument("--forms", required=True); ap.add_argument("--out", default=ROOT + r"\expert_review_results"); ap.add_argument("--key", default=ROOT + r"\expert_review_package_KEY\answer_key.csv")
 ap.add_argument("--min-experts-for-relabel", type=int, default=2); ap.add_argument("--simulated", action="store_true", help="mark outputs as a test with simulated answers"); a = ap.parse_args()
 os.makedirs(a.out, exist_ok=True)

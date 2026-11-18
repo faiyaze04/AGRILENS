@@ -3,7 +3,7 @@
 and build the distributable zip (the answer key is NOT included)."""
 import hashlib, os, random, zipfile
 import pandas as pd
-ROOT = r"D:\AGRILENS_Training\AGL-MANGO-MD"; PK = ROOT + r"\expert_review_package"; KEY = ROOT + r"\expert_review_package_KEY"
+ROOT = r"D:\OneDrive - Faiyaz Personal\OneDrive\3. Shreyance related Documents\AGRILENS_5.0.0\Model_Trainer_Program\AGL-MANGO-MD"; PK = ROOT + r"\expert_review_package"; KEY = ROOT + r"\expert_review_package_KEY"
 k = pd.read_csv(KEY + r"\answer_key.csv"); f = pd.read_csv(PK + r"\expert_response_form.csv")
 assert f.iloc[:, 1:].fillna("").astype(str).apply(lambda c: c.str.len()).sum().sum() == 0 or "tranche" in f.columns, "form already contains answers; refusing to rebuild"
 if "tranche" in f.columns: f = f.drop(columns=["tranche"])

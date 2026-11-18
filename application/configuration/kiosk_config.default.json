@@ -12,5 +12,6 @@
   "cam_flip_h": false,
   "cam_flip_v": false,
   "cam_auto_exp": true,
-  "cam_auto_wb": true
+  "cam_auto_wb": true,
+  "cam_resolution": "1280x720"
 }

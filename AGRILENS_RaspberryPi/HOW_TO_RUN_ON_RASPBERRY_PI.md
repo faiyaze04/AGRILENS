@@ -5,7 +5,7 @@ This folder contains all the standalone files needed to run the **AGRILENS AI Pl
 ---
 
 ## 📁 What is in this Folder:
-- `main.py` — The complete Tkinter Touch Kiosk application (`v5.0.0`, model `AGRILENS-MULTICROP 1.0.0` with its own calibrated rejection gates, `1024x600` Waveshare Touch LCD, unified top selection bar with Bilingual Hindi/English `🌐 हिंदी / EN` Main Screen option, larger touch buttons & enhanced typography, immediate boot OTA + 1-Tap Admin `☁ OTA UPDATE` button with remote `agrilens.onnx` model OTA updates, strict anti-downgrade version guard & per-file SHA-256 logo/asset verification, full-screen logo screensaver on startup & 3-minute inactivity camera power-off with touch/click-to-wake, Live Mode vs. File Mode dropdown, 8-handle manual leaf cropper, and MobileNetV4 ONNX Inference).
+- `main.py` — The complete Tkinter Touch Kiosk application (`v5.1.0`, model `AGRILENS-MULTICROP 1.0.0` with its own calibrated rejection gates, `1024x600` Waveshare Touch LCD, unified top selection bar with Bilingual Hindi/English `🌐 हिंदी / EN` Main Screen option, larger touch buttons & enhanced typography, immediate boot OTA + 1-Tap Admin `☁ OTA UPDATE` button with remote `agrilens.onnx` model OTA updates, strict anti-downgrade version guard & per-file SHA-256 logo/asset verification, full-screen logo screensaver on startup & 3-minute inactivity camera power-off with touch/click-to-wake, Live Mode vs. File Mode dropdown, 8-handle manual leaf cropper, and MobileNetV4 ONNX Inference).
 - `agrilens.onnx` — The integrated 24-class MobileNetV4-Conv-Small ONNX model `AGRILENS-MULTICROP 1.0.0` (~10 MB, all weights embedded), trained on dataset `AGL-MULTICROP-MD 1.0.0`. See `RELEASE_MANIFEST.json` for its SHA-256.
 - `labels.txt` — 24 crop disease & healthy classes across 4 species (`Apple`, `Mango`, `Potato`, `Tomato`).
 - `logos/` — Exclusive logo folder containing `agrilens_logo.jpg` (5s startup splash & 3-minute inactivity standby screen) and `gundecha_logo.png` (Gundecha Education Academy crest).
@@ -142,3 +142,4 @@ Running `./setup_rpi.sh` (or `./setup_remote_ota.sh`) configures **three ways** 
   sudo usermod -a -G video $USER
   ```
 - **Hot-plugging a USB Webcam**: If you plug in a USB webcam after the app is already open in File Mode, go to **`ADMIN`** (`PIN: AGRILENS`) and tap **`🔍 DETECT WEBCAM`**.
+- **Camera resolution**: Since v5.1.0 the kiosk asks the Logitech C270 for 1280x720 (MJPG) and falls back to 640x480 automatically if no frames arrive; the status bar shows the size in use. If the live preview is slow, add `"cam_resolution": "640x480"` to `~/.agrilens_kiosk_config.json` and tap **`🔍 DETECT WEBCAM`** (or restart the kiosk).
