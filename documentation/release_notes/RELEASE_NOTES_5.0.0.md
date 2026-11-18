@@ -1,4 +1,4 @@
-# AGRILENS 5.0.0 release notes (release candidate, not published)
+# AGRILENS 5.0.0 release notes (published 2026-11-17)
 
 | Item | Value |
 |---|---|
@@ -8,7 +8,7 @@
 | Dataset | `AGL-MULTICROP-MD` 1.0.0 (freeze file SHA-256 `12449a5caf1bfc736a9be1a83fa71f603b29045b48eaa7db82b0bffd2e5f8c0a`) |
 | Gates | confidence 0.40, margin 0.12, ood_logit 2.10 (calibrated on validation for this model) |
 | Release record | `deployment/release_manifests/AGRILENS-5.0.0.json` |
-| Status | Software release candidate. **One pre-declared release criterion failed (C2, Mango).** Not validated on the Raspberry Pi, with the C270 camera, or by an agronomic expert. Not published, not deployed. |
+| Status | Released software (accepted with a recorded deviation). **One pre-declared release criterion failed (C2, Mango).** Not validated on the Raspberry Pi, with the C270 camera, or by an agronomic expert. **Published to GitHub `main` on 2026-11-17 and delivered to kiosks by OTA** (change register `CR-0001`); retained as the active release by the project owner on 2026-11-18. |
 
 ## What changes for a kiosk
 
@@ -58,4 +58,16 @@ The 4.9.4 model was most probably trained on the MangoLeafBD, PlantVillage and P
 
 ## Exhibition acceptance (added 2026-11-17)
 
-The project owner accepted this release for the EXPISCOR 2026 school exhibition with the C2 deviation recorded in `C2_DEVIATION_EXHIBITION_ACCEPTANCE.md`. The evaluation results and criteria above are unchanged. Exhibition installation is side by side with 4.9.4 using `deployment/exhibition/` (see `EXHIBITION_READINESS_REPORT_5.0.0.md`). It is still not published and not deployed by OTA.
+The project owner accepted this release for the EXPISCOR 2026 school exhibition with the C2 deviation recorded in `C2_DEVIATION_EXHIBITION_ACCEPTANCE.md`. The evaluation results and criteria above are unchanged. Exhibition installation is side by side with 4.9.4 using `deployment/exhibition/` (see `EXHIBITION_READINESS_REPORT_5.0.0.md`). At the time of that acceptance it was not published.
+
+## Publication and retention (2026-11-17, 2026-11-18)
+
+- 2026-11-17: `release/agrilens-5.0.0` (commit `9017320`) was pushed to GitHub `main` as a fast-forward from `01059f8` (4.9.4), with the owner's approval. The planned procedure (`documentation/history/release_5.0.0/GITHUB_PUBLICATION_INSTRUCTIONS_5.0.0.md`, publisher script, tag `AGRILENS-5.0.0`) was not used; no tag exists. Details and checks: `documentation/CHANGE_REGISTER.md`, `CR-0001`.
+- GitHub's raw-file cache served the 4.9.4 `main.py` for about 4 to 5 minutes after the push. A kiosk that checked in that window reported "up to date" and updates on its next check.
+- Kiosks update on their next boot, kiosk start or Admin OTA tap; a kiosk that stays on does not update by itself.
+- 2026-11-18: the project owner decided to retain 5.0.0 on `main`: no rollback to 4.9.4, no publication of the rollback release 5.0.1, no retraining, no change to the release criteria. Priority: Raspberry Pi 5 and Logitech C270 validation, monitoring of OTA installation and stability.
+- **Exhibition kit procedures are affected.** `deployment/exhibition/README_KIT.md` and `pi_restore_previous.sh` were written while `main` served 4.9.4. Since 2026-11-17 a kiosk that is restored to 4.9.4 and has internet access updates itself to 5.0.0 on its next boot (the 4.9.4 updater ignores `~/.agrilens_ota_hold`). Keep such a kiosk offline if it must stay on 4.9.4.
+
+## Field observations (not validated results)
+
+- 2026-11-18, exhibition hardware: a Mango leaf with dried tips, captured with the C270 and cropped on the touchscreen, was rejected as **UNKNOWN PLANT / OUT OF SCOPE**. The cause has not been established. Not yet confirmed on that kiosk: installed version and model hash, the rejection thresholds it used, and the selected crop. On the desktop, the 8 Mango sample images (also placed on a wide light background) were classified correctly with maximum logits 4.1 to 5.7, above the 5.0.0 gate of 2.10 and below the 4.9.4 device setting of 6.0. This is a single report, not an accuracy figure.

@@ -1,13 +1,15 @@
 # Field validation protocol (pilot)
 
-Purpose: measure how the **unchanged** AGRILENS model and decision logic behave on real Logitech C270 captures taken inside the AGRILENS enclosure. This is **accuracy validation**. It is separate from the Raspberry Pi performance benchmark (`scripts/benchmark_pi5.py`), which measures speed, CPU, memory and temperature and says nothing about accuracy.
+Status: current procedure for Logitech C270 accuracy validation (written in Phase A; paths updated 2026-11-18 for the 5.0.0 layout, where the tools live in `tools/validation/`). Not yet carried out on the exhibition hardware.
+
+Purpose: measure how the **unchanged** AGRILENS model and decision logic behave on real Logitech C270 captures taken inside the AGRILENS enclosure. This is **accuracy validation**. It is separate from the Raspberry Pi performance benchmark (`tools/validation/benchmark_pi5.py`), which measures speed, CPU, memory and temperature and says nothing about accuracy.
 
 Rules for this exercise:
 
 - The model, labels, preprocessing and thresholds are not changed. Results are reported, not tuned.
 - Real-leaf, phone-screen and printed-image results are always reported separately and never pooled.
 - Every capture keeps the original frame and the exact crop used for inference.
-- The 24 images in `test_samples/` (currently `AGRILENS_RaspberryPi/diagnosis_samples/`) are regression fixtures. One image per class cannot support an accuracy claim.
+- The 24 images in `application/diagnosis_samples/` (shipped as `AGRILENS_RaspberryPi/diagnosis_samples/`) are regression fixtures. One image per class cannot support an accuracy claim.
 
 ## 1. Pilot scope
 
@@ -25,7 +27,7 @@ With 5 to 10 images per class the 95% intervals are very wide. The report prints
 ## 2. Ground truth
 
 - The true class is decided before capture and by someone able to confirm it (agronomist, labelled plant, or the label of the source image for phone/print).
-- Use exactly the 24 label names from `models/class_labels.txt` (today `AGRILENS_RaspberryPi/labels.txt`), or `Out_of_scope`.
+- Use exactly the 24 label names from `AGRILENS_RaspberryPi/labels.txt` (the labels of the installed model), or `Out_of_scope`.
 - A leaf that is uncertain or shows two conditions is not captured as in-scope. Record it as a note or leave it out.
 
 ## 3. Capture conditions
@@ -39,7 +41,7 @@ Keep these constant within a session and record what changes between sessions.
 
 ## 4. How to capture (on the Pi)
 
-1. Until the new runtime is installed, the tools run beside the existing install without touching it. Copy only the `scripts/` folder to the Pi (for example to `~/agrilens_tools/scripts`) and point the tools at the installed app:
+1. Until the new runtime is installed, the tools run beside the existing install without touching it. Copy only the `tools/validation/` folder to the Pi (for example to `~/agrilens_tools/scripts`) and point the tools at the installed app:
 
 ```bash
 export AGRILENS_APP_PATH=$HOME/AGRILENS_RaspberryPi/main.py
@@ -84,6 +86,6 @@ The `ood_logit` sensitivity table shows what other settings would have done on t
 
 ## 6. What the pilot can and cannot tell us
 
-It can show: whether real C270 frames in the enclosure clear the 6.0 logit gate, which classes are confused, whether phone-screen images behave differently from real leaves, and whether capture quality is good enough to expand.
+It can show: whether real C270 frames in the enclosure clear the rejection gates of the installed version (5.0.0: `ood_logit` 2.10 from the model calibration; 4.9.4 units were often calibrated to 6.0), which classes are confused, whether phone-screen images behave differently from real leaves, and whether capture quality is good enough to expand.
 
 It cannot show: population accuracy, performance on leaves from other regions or seasons, or a threshold recommendation. Those need the expanded dataset.
