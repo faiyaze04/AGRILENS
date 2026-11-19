@@ -131,3 +131,19 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Documentation updated | RELEASE_NOTES_5.2.0.md, HOW_TO.md (version, model), README.md, device guide (version, model), CONFIGURATION.md (gate 2.90, saved thresholds ignored after a model change), INSTALLATION.md (example lines), ARCHITECTURE.md, TRAINING.md, MODEL_REGISTRY.json, HOW_TO index |
 | Known risks | Published without Raspberry Pi 5 / Logitech C270 validation (owner decision). No run-once release evaluation (C1-C9) for 1.1.0. Mango Healthy recall lower than 1.0.0 (0.83 vs 0.92). Kiosk-saved slider thresholds for 1.0.0 are ignored after the update. CDN delay may leave a kiosk on the old model with generic gates until its next boot. Fleet rollback needs a release above 5.2.0 (5.0.1 rollback is a downgrade); single kiosks can use rollback.sh. |
 | Commit | pending |
+
+### CR-0009 — Release_Evidence folder deleted (owner request)
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-19 |
+| Application version | 5.2.0 (unchanged: documentation only; nothing shipped changed) |
+| Category | Documentation |
+| Description | Deleted the folder <AGRILENS_5.0.0>\Release_Evidence (57 files outside git: the 4.9.4 git bundle and working-tree zip, dataset build/extract logs, a release-evaluation smoke run, logs and helper scripts of the 5.0.0 work and the folder move). Before deletion, git bundle verify passed and all 6 refs of the bundle (main 01059f8, restructure/v5 and tag phase-A 585698f) were found in GitHub main. ROLLBACK.md now points to the git history instead of the bundle; the folder was removed from AGRILENS_5.0.0.code-workspace. |
+| Reason | Owner request (2026-11-19): the folder is of no further use. |
+| Files affected | documentation/technical/ROLLBACK.md, this register (outside git: Release_Evidence deleted, AGRILENS_5.0.0.code-workspace) |
+| Tests executed | git bundle verify; per-ref containment check against github/main; pre-commit gate |
+| Test outcome | Bundle valid; 6 of 6 refs contained in GitHub main; folder absent after deletion. |
+| Documentation updated | ROLLBACK.md. Older register entries and release records that mention Release_Evidence are historical and not edited. |
+| Known risks | The 4.9.4 working-tree-as-found zip (uncommitted state from before 5.0.0) and the 5.0.0 work logs no longer exist outside OneDrive's recycle bin (kept there for about 30 days). |
+| Commit | pending |

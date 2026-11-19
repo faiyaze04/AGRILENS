@@ -44,4 +44,4 @@ Saved settings after rollback: the 4.9.4 code applies whatever thresholds are sa
 
 ## Repository rollback
 
-The complete pre-5.0.0 history is preserved in `<AGRILENS_5.0.0>\Release_Evidence\baseline_4.9.4\AGRILENS_all_refs.bundle` (all refs) and the working tree as found in `working_tree_app_folders_as_found.zip` with `working_tree_SHA256SUMS.txt`. The 4.9.4 application files are also kept byte-identical in `tests/regression/baseline/legacy_4.9.4/` and the 4.9.4 model in `models/production/agrilens-24class-4.9.4/`.
+The complete pre-5.0.0 history is in this repository's git history on GitHub `main` (Release v4.9.4 is commit `01059f8`; the Phase A work is tag `phase-A`, commit `585698f`). The separate backup bundle and working-tree zip in `Release_Evidence` were deleted on 2026-11-19 at the owner's request (CR-0009) after checking that every ref in the bundle is contained in GitHub `main`. The 4.9.4 application files are also kept byte-identical in `tests/regression/baseline/legacy_4.9.4/` and the 4.9.4 model in `models/production/agrilens-24class-4.9.4/`.
