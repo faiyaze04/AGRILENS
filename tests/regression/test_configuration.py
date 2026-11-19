@@ -155,6 +155,9 @@ def test_stored_precedence_matrix_still_matches(app):
         # history_enabled / history_max_images (added in 5.3.0) likewise take their defaults.
         expected.setdefault("history_enabled", app.DEFAULT_CONFIG["history_enabled"])
         expected.setdefault("history_max_images", app.DEFAULT_CONFIG["history_max_images"])
+        # history_sync_* (added in 5.4.0) likewise take their defaults.
+        for key in ("history_sync_enabled", "history_sync_remote", "history_sync_path", "history_sync_minutes"):
+            expected.setdefault(key, app.DEFAULT_CONFIG[key])
         assert eff(app, case["app_dir_file"], case["user_file"]) == expected, case["name"]
 
 

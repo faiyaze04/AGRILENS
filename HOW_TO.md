@@ -10,7 +10,7 @@ AGRILENS is an offline touch kiosk that diagnoses leaf diseases of Apple, Mango,
 
 | Item | Value |
 |---|---|
-| Application | **<!-- agl:version -->5.3.0<!-- /agl:version -->** (authoritative: `APP_VERSION` in `application/main.py`) |
+| Application | **<!-- agl:version -->5.4.0<!-- /agl:version -->** (authoritative: `APP_VERSION` in `application/main.py`) |
 | On GitHub `main` / OTA | 5.0.0 since 2026-11-17 (`documentation/CHANGE_REGISTER.md`, `CR-0001`) |
 | Model | AGRILENS-MULTICROP 1.1.0 (SHA-256 `0774ca4a…e0f08e`), since 5.2.0; 1.0.0 before |
 | Validation status | Desktop only. Raspberry Pi 5, C270 and expert validation not yet performed. One release criterion (C2, Mango) failed and was accepted as a recorded deviation. |
@@ -64,6 +64,8 @@ Since 5.3.0 every **DIAGNOSE NOW** is recorded on the kiosk in `~/AGRILENS_histo
 - `diagnosis_log.csv`: one row per diagnosis with the same fields (opens in a spreadsheet).
 
 Copy the folder to a USB stick or the PC to review diagnoses or to collect real C270 images. Settings: `history_enabled`, `history_max_images` in [`documentation/technical/CONFIGURATION.md`](documentation/technical/CONFIGURATION.md).
+
+Since 5.4.0 the kiosk also uploads this folder to OneDrive every 30 minutes when the internet is available (`rclone copy`: new files only, nothing is deleted in OneDrive, so images the kiosk removes at its limit stay in OneDrive). One-time setup on the Pi (install rclone, sign in to OneDrive, set the destination folder): device guide, section "Diagnosis history upload to OneDrive". Upload log: `~/AGRILENS_history_sync.log`.
 
 ## Offline operation
 
@@ -122,6 +124,7 @@ Kiosks download a fixed file list from `AGRILENS_RaspberryPi/` on GitHub `main` 
 | [`documentation/technical/TRAINING.md`](documentation/technical/TRAINING.md) | Dataset, training, selection, calibration and release evaluation |
 | [`documentation/technical/field_validation_protocol_phase_A.md`](documentation/technical/field_validation_protocol_phase_A.md) | Field (C270) accuracy validation protocol |
 | [`datasets/master/AGL-MULTICROP-MD/DATASET_CARD.md`](datasets/master/AGL-MULTICROP-MD/DATASET_CARD.md) | Dataset card AGL-MULTICROP-MD 1.0.0 (structure, sources, licences) |
+| [`documentation/release_notes/RELEASE_NOTES_5.4.0.md`](documentation/release_notes/RELEASE_NOTES_5.4.0.md) | Release notes 5.4.0: diagnosis history upload to OneDrive (rclone) |
 | [`documentation/release_notes/RELEASE_NOTES_5.3.0.md`](documentation/release_notes/RELEASE_NOTES_5.3.0.md) | Release notes 5.3.0: diagnosis history (leaf images + log) |
 | [`documentation/release_notes/RELEASE_NOTES_5.2.0.md`](documentation/release_notes/RELEASE_NOTES_5.2.0.md) | Release notes 5.2.0: model AGRILENS-MULTICROP 1.1.0 (webcam-robust), gate ood_logit 2.90 |
 | [`documentation/release_notes/RELEASE_NOTES_5.1.0.md`](documentation/release_notes/RELEASE_NOTES_5.1.0.md) | Release notes 5.1.0: camera capture at 1280x720 with 640x480 fallback |

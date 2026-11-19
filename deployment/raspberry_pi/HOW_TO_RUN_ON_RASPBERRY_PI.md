@@ -144,3 +144,38 @@ Running `./setup_rpi.sh` (or `./setup_remote_ota.sh`) configures **three ways** 
 - **Hot-plugging a USB Webcam**: If you plug in a USB webcam after the app is already open in File Mode, go to **`ADMIN`** (`PIN: AGRILENS`) and tap **`🔍 DETECT WEBCAM`**.
 - **Camera resolution**: Since v5.1.0 the kiosk asks the Logitech C270 for 1280x720 (MJPG) and falls back to 640x480 automatically if no frames arrive; the status bar shows the size in use. If the live preview is slow, add `"cam_resolution": "640x480"` to `~/.agrilens_kiosk_config.json` and tap **`🔍 DETECT WEBCAM`** (or restart the kiosk).
 - **Diagnosis history**: Since v5.3.0 every DIAGNOSE NOW saves the diagnosed leaf image and its record in `~/AGRILENS_history/` (one folder per day: `<time>_<VERDICT>.jpg` + `.json`, plus `diagnosis_log.csv` with one row per diagnosis). OTA updates and `rollback.sh` do not touch it. To copy it to a USB stick: `cp -r ~/AGRILENS_history /media/$USER/<stick>/`. To stop recording, add `"history_enabled": false` to `~/.agrilens_kiosk_config.json` and restart the kiosk.
+
+## ☁ Diagnosis history upload to OneDrive (v5.4.0+)
+
+The kiosk uploads `~/AGRILENS_history/` to OneDrive every 30 minutes when the internet is available (and about 2 minutes after it starts). It uses **rclone copy**: new and changed files are uploaded, nothing is ever deleted in OneDrive. Without internet the attempt is skipped and the next one catches up. Every attempt writes one line to `~/AGRILENS_history_sync.log`. Nothing is uploaded until the one-time setup below is done.
+
+**One-time setup** (on the Pi, with the screen and keyboard or through Raspberry Pi Connect; about 10 minutes):
+
+1. Install rclone:
+   ```bash
+   sudo apt update && sudo apt install -y rclone
+   ```
+2. Link your OneDrive (work/school account):
+   ```bash
+   rclone config
+   ```
+   Answer: `n` (new remote) → name **`agrilens_onedrive`** → storage **`onedrive`** → client_id and client_secret: press Enter → region: `1` (Microsoft Cloud Global) → edit advanced config: `n` → use web browser to authenticate: **`y`** (the Pi browser opens; sign in with the Microsoft account that owns the OneDrive folder) → connection type: `1` (OneDrive Personal or Business) → pick your OneDrive → `y` to confirm → `q` to quit.
+   - No browser on the Pi (for example over SSH): answer `n` at "use web browser", run `rclone authorize "onedrive"` on a PC that has rclone and paste the token it prints.
+   - If Microsoft shows "Need admin approval", your organisation must allow the rclone app first; ask the Microsoft 365 administrator.
+3. Find the destination folder. The first command lists the top folders of your OneDrive; the second must show `Kiosk_Program` and `Model_Trainer_Program`:
+   ```bash
+   rclone lsd agrilens_onedrive:
+   rclone lsd "agrilens_onedrive:<your folders>/AGRILENS_5.0.0"
+   ```
+   (Replace `<your folders>` with the folders above `AGRILENS_5.0.0` as listed by the first command and by `rclone lsd \"agrilens_onedrive:<folder>\"`; names with spaces need the quotes.)
+4. Close the kiosk (Escape), then add the folder to the kiosk settings `~/.agrilens_kiosk_config.json` (keep the file valid JSON: a comma after the previous entry):
+   ```json
+   "history_sync_path": "<your folders>/AGRILENS_5.0.0/Kiosk_History"
+   ```
+5. Start the kiosk again. After about 2 minutes check the upload:
+   ```bash
+   tail -n 5 ~/AGRILENS_history_sync.log
+   ```
+   `uploaded to agrilens_onedrive:...` means it works; the files appear in `AGRILENS_5.0.0\Kiosk_History` on your PC once OneDrive syncs. `offline (skipped)` means no internet at that moment; `remote 'agrilens_onedrive' not configured` means step 2 is missing.
+
+**Security:** the OneDrive sign-in is stored by rclone in `~/.config/rclone/rclone.conf` on the Pi and can read and write your whole OneDrive. If the Pi is lost, remove the app's access in your Microsoft account (My Account → App permissions) or change your password. To stop uploads, set `"history_sync_enabled": false` in `~/.agrilens_kiosk_config.json`.

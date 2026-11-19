@@ -15,5 +15,9 @@
   "cam_auto_wb": true,
   "cam_resolution": "1280x720",
   "history_enabled": true,
-  "history_max_images": 5000
+  "history_max_images": 5000,
+  "history_sync_enabled": true,
+  "history_sync_remote": "agrilens_onedrive",
+  "history_sync_path": "AGRILENS_Kiosk_History",
+  "history_sync_minutes": 30
 }
