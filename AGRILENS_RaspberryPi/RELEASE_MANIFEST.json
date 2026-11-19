@@ -1,10 +1,10 @@
 {
- "release": "AGRILENS-5.1.0",
- "app_version": "5.1.0",
- "build_timestamp": "2026-11-18 19:24 (development build)",
+ "release": "AGRILENS-5.2.0",
+ "app_version": "5.2.0",
+ "build_timestamp": "2026-11-19 08:19 (development build)",
  "model_id": "AGRILENS-MULTICROP",
- "model_version": "1.0.0",
- "model_sha256": "776d08ac669d0ea8874a458bfb6ea2657c5d40525d30021c7c8c1204d520332b",
+ "model_version": "1.1.0",
+ "model_sha256": "0774ca4aadab930086ade370234919a69cf35c8a22844355f78a20a194e0f08e",
  "dataset_version": "AGL-MULTICROP-MD 1.0.0",
  "labels": [
   "Apple_Rust",
@@ -46,11 +46,11 @@
   "agrilens.onnx"
  ],
  "files_sha256": {
-  "agrilens.onnx": "776d08ac669d0ea8874a458bfb6ea2657c5d40525d30021c7c8c1204d520332b",
-  "HOW_TO_RUN_ON_RASPBERRY_PI.md": "4172f03eb44e64b30bd054aa35ce969ec0cb64fa50b5e75b38baf97c6490b6f8",
+  "agrilens.onnx": "0774ca4aadab930086ade370234919a69cf35c8a22844355f78a20a194e0f08e",
+  "HOW_TO_RUN_ON_RASPBERRY_PI.md": "7c70b7fb8b7d4db2952b0e6943c35838675173c31191d9b09371bca6ba7b87aa",
   "kiosk_config.json": "6e7f19fec809c7ad633a4b5ef3e71bfb1b51dcef0b0830a379bdefa100e9b137",
   "labels.txt": "5087b575db52af07cf8efe82b033ea2715b7dd6b20106f3554ae7945e7aed393",
-  "main.py": "98110d357a8fb86fbddbf4419e494ec784830d154361fcef60da0727d7f93597",
+  "main.py": "40d11a68289cd94450282d73d5eb83b6da122f692262efbcda1fb10787b9f91d",
   "ota_update.sh": "4e46d42ecaeae28e2b285f7c092a48bb50a8f886103b5e998feabb11521257ba",
   "requirements.txt": "8afe953946a9eb12838a29134406651e4bae4085dc0c72291bc0b57ca5d4d68c",
   "rollback.sh": "1ac2d6688954881b8fe544fa82e35e7b3f790685a0bd475147e08193588ff1ec",

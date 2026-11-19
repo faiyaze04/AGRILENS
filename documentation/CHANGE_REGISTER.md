@@ -115,3 +115,19 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Documentation updated | TRAINING.md (candidate 1.1.0 section), ARCHITECTURE.md (candidate row). Release notes not changed: nothing is released. |
 | Known risks | Not checked on real Logitech C270 captures or on the Raspberry Pi 5. The simulated C270 set is related to the candidate's training augmentation and favours it. Mango Healthy recall dropped. The frozen 1.0.0 release evaluation (run-once) was not re-run; 1.1.0 has no formal release evaluation yet. A release needs MODEL_SHA256 and MODEL_CALIBRATION_OOD_LOGIT = 2.90 in main.py and owner approval. |
 | Commit | pending |
+
+### CR-0008 — AGRILENS 5.2.0: model AGRILENS-MULTICROP 1.1.0 (webcam-robust), gate ood_logit 2.90
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-19 |
+| Application version | 5.2.0 (minor, from 5.1.0: new release model with its own calibrated rejection gate; same classes, interfaces and OTA) |
+| Category | AI/model |
+| Description | Release model changed from AGRILENS-MULTICROP 1.0.0 to 1.1.0 (CR-0007): MODEL_SHA256 0774ca4a...e0f08e, MODEL_VERSION 1.1.0 and MODEL_CALIBRATION_OOD_LOGIT 2.90 in application/main.py (confidence 0.40 and margin 0.12 unchanged); AGRILENS_RaspberryPi/ rebuilt from models/candidates/agrilens-multicrop-1.1.0 (new agrilens.onnx, main.py, device guide, RELEASE_MANIFEST.json, SHA256SUMS); release record deployment/release_manifests/AGRILENS-5.2.0.json. Tests: new golden baseline tests/regression/baseline_5.2.0/ (24 of 24 samples correct), model-identity and package-source tests made model-relative. write_release_record.py takes --model-dir, --calibration and --comparison (defaults unchanged). Kiosks download the 10 MB model once on their next OTA. |
+| Reason | Owner request (2026-11-19): push and publish the better-trained model 1.1.0 to the kiosks. |
+| Files affected | application/main.py, AGRILENS_RaspberryPi/ (main.py, agrilens.onnx, HOW_TO_RUN_ON_RASPBERRY_PI.md, RELEASE_MANIFEST.json, SHA256SUMS), deployment/release_manifests/AGRILENS-5.2.0.json, deployment/packaging/write_release_record.py, deployment/raspberry_pi/HOW_TO_RUN_ON_RASPBERRY_PI.md, models/manifests/MODEL_REGISTRY.json, tests/regression/baseline_5.2.0/golden_predictions.json, tests/regression/test_classifier.py, tests/unit/test_release_5_0_0.py, README.md, HOW_TO.md, documentation/release_notes/RELEASE_NOTES_5.2.0.md, documentation/technical/ (ARCHITECTURE, CONFIGURATION, INSTALLATION, TRAINING), tools/governance/governance_rules.json, this register |
+| Tests executed | build_device_package.py --model-dir models/candidates/agrilens-multicrop-1.1.0; python -m pytest -q (Windows, kiosk .venv); capture_baseline.py --only predictions for the new model; model comparison of CR-0007 |
+| Test outcome | Package build passed its checks (MODEL_SHA256 = packaged model, 24 outputs = 24 labels, label order = release labels, main.py compiles, version newer). pytest: 192 passed, 0 failed. Sample images 24 of 24 top-1 correct. Model comparison: see CR-0007 and RELEASE_NOTES_5.2.0.md. |
+| Documentation updated | RELEASE_NOTES_5.2.0.md, HOW_TO.md (version, model), README.md, device guide (version, model), CONFIGURATION.md (gate 2.90, saved thresholds ignored after a model change), INSTALLATION.md (example lines), ARCHITECTURE.md, TRAINING.md, MODEL_REGISTRY.json, HOW_TO index |
+| Known risks | Published without Raspberry Pi 5 / Logitech C270 validation (owner decision). No run-once release evaluation (C1-C9) for 1.1.0. Mango Healthy recall lower than 1.0.0 (0.83 vs 0.92). Kiosk-saved slider thresholds for 1.0.0 are ignored after the update. CDN delay may leave a kiosk on the old model with generic gates until its next boot. Fleet rollback needs a release above 5.2.0 (5.0.1 rollback is a downgrade); single kiosks can use rollback.sh. |
+| Commit | pending |

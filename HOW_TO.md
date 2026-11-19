@@ -10,9 +10,9 @@ AGRILENS is an offline touch kiosk that diagnoses leaf diseases of Apple, Mango,
 
 | Item | Value |
 |---|---|
-| Application | **<!-- agl:version -->5.1.0<!-- /agl:version -->** (authoritative: `APP_VERSION` in `application/main.py`) |
+| Application | **<!-- agl:version -->5.2.0<!-- /agl:version -->** (authoritative: `APP_VERSION` in `application/main.py`) |
 | On GitHub `main` / OTA | 5.0.0 since 2026-11-17 (`documentation/CHANGE_REGISTER.md`, `CR-0001`) |
-| Model | AGRILENS-MULTICROP 1.0.0 (SHA-256 `776d08ac…0332b`) |
+| Model | AGRILENS-MULTICROP 1.1.0 (SHA-256 `0774ca4a…e0f08e`), since 5.2.0; 1.0.0 before |
 | Validation status | Desktop only. Raspberry Pi 5, C270 and expert validation not yet performed. One release criterion (C2, Mango) failed and was accepted as a recorded deviation. |
 
 Show every version value and where it comes from: `python tools/governance/agl_governance.py version`.
@@ -65,7 +65,7 @@ Diagnosis runs fully on the device; no internet is needed. Internet is used only
 
 ## Model information
 
-AGRILENS-MULTICROP 1.0.0, MobileNetV4-Conv-Small, single-file ONNX (~10 MB), input 224×224, 24 outputs in the order of `labels.txt`. Six-view logit ensemble and three rejection gates: [`documentation/technical/ARCHITECTURE.md`](documentation/technical/ARCHITECTURE.md). Model files and registry: `models/candidates/agrilens-multicrop-1.0.0/`, `models/manifests/MODEL_REGISTRY.json`. Evaluation: release notes and `training/reports/agrilens-multicrop-1.0.0/`.
+AGRILENS-MULTICROP 1.1.0 (since 5.2.0; same architecture and classes as 1.0.0, trained with webcam-style augmentation), MobileNetV4-Conv-Small, single-file ONNX (~10 MB), input 224×224, 24 outputs in the order of `labels.txt`. Six-view logit ensemble and three rejection gates: [`documentation/technical/ARCHITECTURE.md`](documentation/technical/ARCHITECTURE.md). Model files and registry: `models/candidates/agrilens-multicrop-1.1.0/` (1.0.0: `models/candidates/agrilens-multicrop-1.0.0/`), `models/manifests/MODEL_REGISTRY.json`. Evaluation: release notes, `models/candidates/agrilens-multicrop-1.1.0/comparison/COMPARISON.md` and `training/reports/agrilens-multicrop-1.0.0/`.
 
 ## Training workflow
 
@@ -112,6 +112,7 @@ Kiosks download a fixed file list from `AGRILENS_RaspberryPi/` on GitHub `main` 
 | [`documentation/technical/TRAINING.md`](documentation/technical/TRAINING.md) | Dataset, training, selection, calibration and release evaluation |
 | [`documentation/technical/field_validation_protocol_phase_A.md`](documentation/technical/field_validation_protocol_phase_A.md) | Field (C270) accuracy validation protocol |
 | [`datasets/master/AGL-MULTICROP-MD/DATASET_CARD.md`](datasets/master/AGL-MULTICROP-MD/DATASET_CARD.md) | Dataset card AGL-MULTICROP-MD 1.0.0 (structure, sources, licences) |
+| [`documentation/release_notes/RELEASE_NOTES_5.2.0.md`](documentation/release_notes/RELEASE_NOTES_5.2.0.md) | Release notes 5.2.0: model AGRILENS-MULTICROP 1.1.0 (webcam-robust), gate ood_logit 2.90 |
 | [`documentation/release_notes/RELEASE_NOTES_5.1.0.md`](documentation/release_notes/RELEASE_NOTES_5.1.0.md) | Release notes 5.1.0: camera capture at 1280x720 with 640x480 fallback |
 | [`documentation/release_notes/RELEASE_NOTES_5.0.0.md`](documentation/release_notes/RELEASE_NOTES_5.0.0.md) | Release notes 5.0.0: changes, evaluation, known limitations |
 | [`documentation/CHANGE_REGISTER.md`](documentation/CHANGE_REGISTER.md) | Change register (all significant changes from 2026-11-17) |

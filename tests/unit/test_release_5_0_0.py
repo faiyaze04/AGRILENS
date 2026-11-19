@@ -12,7 +12,7 @@ def test_version_identifiers_are_independent(app):
     assert re.fullmatch(r"\d+\.\d+\.\d+", app.APP_VERSION)
     assert tuple(int(x) for x in app.APP_VERSION.split(".")) >= (5, 0, 0)
     assert app.OTA_RELEASE_ID == "AGRILENS-" + app.APP_VERSION
-    assert (app.MODEL_ID, app.MODEL_VERSION) == ("AGRILENS-MULTICROP", "1.0.0")
+    assert app.MODEL_ID == "AGRILENS-MULTICROP" and re.fullmatch(r"1\.\d+\.\d+", app.MODEL_VERSION)   # same 24-class contract since 1.0.0 (5.2.0: 1.1.0)
     assert app.DATASET_VERSION == "AGL-MULTICROP-MD 1.0.0"
     assert re.fullmatch(r"[0-9a-f]{64}", app.MODEL_SHA256)
     assert app.BUILD_TIMESTAMP not in ("", "UNSET")
@@ -89,10 +89,24 @@ def test_in_app_ota_compiles_main_before_replacing_the_model():
     assert worker.count("backup_for_rollback(") >= 3   # definition + model + other files
 
 
+def _release_model_dir():
+    """The models/ folder whose MODEL_MANIFEST.json carries the MODEL_SHA256 of application/main.py (the model the release ships)."""
+    import json
+    src = open(os.path.join(ROOT, "application", "main.py"), encoding="utf-8").read()
+    want = re.search(r'^MODEL_SHA256 = "([0-9a-f]{64})"', src, re.M).group(1)
+    for kind in ("candidates", "production"):
+        base = os.path.join(ROOT, "models", kind)
+        for d in sorted(os.listdir(base)):
+            man = os.path.join(base, d, "MODEL_MANIFEST.json")
+            if os.path.isfile(man) and json.load(open(man, encoding="utf-8")).get("sha256") == want:
+                return os.path.join(base, d)
+    raise AssertionError("no model folder in models/ matches MODEL_SHA256 " + want)
+
 @pytest.mark.parametrize("name", ["main.py", "labels.txt", "agrilens.onnx"])
 def test_device_package_is_generated_from_the_sources(name):
     import hashlib
     h = lambda p: hashlib.sha256(open(p, "rb").read().replace(b"\r\n", b"\n") if not p.endswith(".onnx") else open(p, "rb").read()).hexdigest()   # package text files are LF
-    src = {"main.py": os.path.join(ROOT, "application", "main.py"), "labels.txt": os.path.join(ROOT, "models", "candidates", "agrilens-multicrop-1.0.0", "labels.txt"),
-           "agrilens.onnx": os.path.join(ROOT, "models", "candidates", "agrilens-multicrop-1.0.0", "agrilens.onnx")}[name]
+    model_dir = _release_model_dir()
+    src = {"main.py": os.path.join(ROOT, "application", "main.py"), "labels.txt": os.path.join(model_dir, "labels.txt"),
+           "agrilens.onnx": os.path.join(model_dir, "agrilens.onnx")}[name]
     assert h(os.path.join(ROOT, "AGRILENS_RaspberryPi", name)) == h(src)
