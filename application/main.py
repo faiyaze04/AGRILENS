@@ -150,15 +150,15 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "5.2.0"
-BUILD_TIMESTAMP = "2026-11-19 08:19 (development build)"
+APP_VERSION = "5.3.0"
+BUILD_TIMESTAMP = "2026-11-19 15:02 (development build)"
 MODEL_SHA256 = "0774ca4aadab930086ade370234919a69cf35c8a22844355f78a20a194e0f08e"
 # Model identity (independent of APP_VERSION). MODEL_SHA256 is verified against the model file by deployment/packaging/build_device_package.py.
 MODEL_ID = "AGRILENS-MULTICROP"
 MODEL_VERSION = "1.1.0"
 MODEL_NUM_CLASSES = 24
 DATASET_VERSION = "AGL-MULTICROP-MD 1.0.0"
-OTA_RELEASE_ID = "AGRILENS-5.2.0"
+OTA_RELEASE_ID = "AGRILENS-5.3.0"
 # Rejection-gate calibration of the model above, set on validation data only (training/evaluation/). Used only when the loaded model matches MODEL_SHA256.
 MODEL_CALIBRATION_CONFIDENCE = 0.40
 MODEL_CALIBRATION_MARGIN = 0.12
@@ -288,8 +288,14 @@ DEFAULT_CONFIG = {
     "cam_auto_exp": True,
     "cam_auto_wb": True,
     "cam_resolution": "1280x720",
+    "history_enabled": True,
+    "history_max_images": 5000,
     "language": "EN",
 }
+# Diagnosis history (since 5.3.0): every DIAGNOSE NOW stores the diagnosed (cropped) leaf image and a log record outside the
+# application folder, so OTA updates and rollbacks never touch it. AGRILENS_HISTORY_DIR overrides the location (tests).
+HISTORY_DIR = os.environ.get("AGRILENS_HISTORY_DIR") or os.path.expanduser("~/AGRILENS_history")
+HISTORY_MIN_FREE_MB = 300        # no image is written when less free disk space than this is left
 # Capture resolutions the kiosk may request, highest first. 1280x720 is the Logitech C270 maximum;
 # 640x480 is the fallback (and the 5.0.0 behaviour) when the camera cannot deliver the requested mode.
 CAMERA_RESOLUTIONS = ("1280x720", "640x480")
@@ -389,6 +395,9 @@ def load_kiosk_config():
         val = cfg.get(bkey, bdef)
         cfg[bkey] = val if isinstance(val, bool) else bdef
     cfg["cam_resolution"] = "%dx%d" % parse_camera_resolution(cfg.get("cam_resolution"))
+    hv = cfg.get("history_enabled", True)
+    cfg["history_enabled"] = hv if isinstance(hv, bool) else True
+    cfg["history_max_images"] = _clamp_num(cfg.get("history_max_images"), 5000, 0, 100000, as_int=True)
     cfg["language"] = "HI" if str(cfg.get("language", "EN")).upper() == "HI" else "EN"
     return cfg
 
@@ -835,6 +844,119 @@ def parse_label(label):
             cond = parts[1].replace("_", " ").title().strip()
             return crop, cond, healthy
     return "", clean.replace("_", " ").title(), healthy
+
+
+# =============================================================================
+# 3b. DIAGNOSIS HISTORY (captured leaf images + diagnosis log)
+# =============================================================================
+class DiagnosisHistory:
+    """
+    Stores every diagnosis outside the application folder (default ~/AGRILENS_history):
+      <YYYY-MM-DD>/<YYYYMMDD_HHMMSS_mmm>_<VERDICT>.jpg   the diagnosed (cropped) leaf image, exactly what the model saw
+      <YYYY-MM-DD>/<YYYYMMDD_HHMMSS_mmm>_<VERDICT>.json  full record: time, input, crop, camera, model, thresholds, result, quality
+      diagnosis_log.csv                                   one row per diagnosis (opens in a spreadsheet)
+    Writing happens on a background thread and never raises into the kiosk. Above max_images the oldest images and their
+    records are removed (0 = keep all); nothing is written when the disk has less than HISTORY_MIN_FREE_MB free.
+    """
+    CSV_FIELDS = ["record_id", "timestamp_local", "timestamp_utc", "status", "verdict", "result", "crop", "condition",
+                  "confidence_pct", "top1_raw_pct", "margin_pct", "max_logit", "second_label", "second_pct",
+                  "input_mode", "source_file", "selected_crop", "image_file", "image_width", "image_height",
+                  "frame_width", "frame_height", "crop_box", "quality_score", "quality_rating", "camera",
+                  "gate_confidence", "gate_margin", "gate_ood_logit", "gate_source",
+                  "app_version", "model_id", "model_version", "model_sha256", "engine", "latency_ms", "language", "save_status"]
+
+    def __init__(self, base_dir=None, enabled=True, max_images=5000):
+        self.base_dir = base_dir or HISTORY_DIR
+        self.enabled = bool(enabled)
+        self.max_images = int(max_images or 0)
+        self._lock = threading.Lock()
+        self.last_error = ""
+        self.saved_count = 0
+
+    @staticmethod
+    def make_record_id(now=None):
+        now = now or time.time()
+        return time.strftime("%Y%m%d_%H%M%S", time.localtime(now)) + "_%03d" % int((now % 1) * 1000)
+
+    def record(self, image, meta, wait=False):
+        """Queue one diagnosis. Returns the record id (or None when history is off). wait=True writes synchronously."""
+        if not self.enabled or image is None:
+            return None
+        now = time.time()
+        rid = self.make_record_id(now)
+        meta = dict(meta or {})
+        meta.setdefault("record_id", rid)
+        meta.setdefault("timestamp_local", time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now)) + ".%03d" % int((now % 1) * 1000))
+        meta.setdefault("timestamp_utc", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)))
+        img = image.copy()
+        if wait:
+            self._write(img, meta, now)
+        else:
+            threading.Thread(target=self._write, args=(img, meta, now), daemon=True).start()
+        return rid
+
+    def _write(self, img, meta, now):
+        with self._lock:
+            try:
+                os.makedirs(self.base_dir, exist_ok=True)
+                try:
+                    import shutil as _sh
+                    free_mb = _sh.disk_usage(self.base_dir).free / (1024 * 1024)
+                except Exception:
+                    free_mb = None
+                day = time.strftime("%Y-%m-%d", time.localtime(now))
+                day_dir = os.path.join(self.base_dir, day)
+                os.makedirs(day_dir, exist_ok=True)
+                verdict = "".join(ch for ch in str(meta.get("verdict", "UNRATED")) if ch.isalnum() or ch == "_")[:24] or "UNRATED"
+                stem = f"{meta['record_id']}_{verdict}"
+                rel_img = f"{day}/{stem}.jpg"
+                if free_mb is not None and free_mb < HISTORY_MIN_FREE_MB:
+                    meta["save_status"] = f"image not saved: only {free_mb:.0f} MB free"
+                    meta["image_file"] = ""
+                else:
+                    img.convert("RGB").save(os.path.join(day_dir, stem + ".jpg"), "JPEG", quality=92)
+                    meta["image_file"] = rel_img
+                    meta["image_width"], meta["image_height"] = img.size
+                    meta["save_status"] = "saved"
+                with open(os.path.join(day_dir, stem + ".json"), "w", encoding="utf-8") as f:
+                    json.dump(meta, f, indent=1, ensure_ascii=False)
+                self._append_csv(meta)
+                self.saved_count += 1
+                self.last_error = ""
+                if self.max_images and self.saved_count % 25 == 1:
+                    self._prune()
+            except Exception as e:
+                self.last_error = str(e)
+                print(f"Notice: diagnosis history not written ({e})")
+
+    def _append_csv(self, meta):
+        import csv as _csv
+        path = os.path.join(self.base_dir, "diagnosis_log.csv")
+        new = not os.path.exists(path)
+        with open(path, "a", newline="", encoding="utf-8-sig" if new else "utf-8") as f:
+            w = _csv.DictWriter(f, fieldnames=self.CSV_FIELDS, extrasaction="ignore")
+            if new:
+                w.writeheader()
+            w.writerow({k: ("" if meta.get(k) is None else meta.get(k)) for k in self.CSV_FIELDS})
+
+    def _prune(self):
+        """Keeps at most max_images images: deletes the oldest image files (and their .json records) first."""
+        try:
+            imgs = sorted(glob.glob(os.path.join(self.base_dir, "????-??-??", "*.jpg")), key=lambda p: os.path.basename(p))
+            for p in imgs[:max(0, len(imgs) - self.max_images)]:
+                for q in (p, p[:-4] + ".json"):
+                    try:
+                        os.remove(q)
+                    except OSError:
+                        pass
+            for d in glob.glob(os.path.join(self.base_dir, "????-??-??")):
+                try:
+                    if not os.listdir(d):
+                        os.rmdir(d)
+                except OSError:
+                    pass
+        except Exception as e:
+            print(f"Notice: diagnosis history pruning skipped ({e})")
 
 
 # =============================================================================
@@ -1853,6 +1975,11 @@ class AgriLensApp:
         self.selected_plant = None
         self.lang = "HI" if str(cfg.get("language", "EN")).upper() == "HI" else "EN"
         self.last_file_short_name = ""
+        self.last_file_path = ""
+        self.last_verdict = None
+        self.history_enabled = bool(cfg.get("history_enabled", True))
+        self.history_max_images = int(cfg.get("history_max_images", 5000))
+        self.history = DiagnosisHistory(HISTORY_DIR, enabled=self.history_enabled, max_images=self.history_max_images)
         self.input_mode = "LIVE"  # Default: "LIVE" (if camera connected), auto-falls back to "FILE" if no camera
         self.startup_splash_active = True
         self.startup_start_ts = time.monotonic()
@@ -3571,6 +3698,8 @@ class AgriLensApp:
             "cam_auto_exp": bool(self.camera.auto_exp),
             "cam_auto_wb": bool(self.camera.auto_wb),
             "cam_resolution": "%dx%d" % tuple(self.camera.resolution),
+            "history_enabled": bool(getattr(self, "history_enabled", True)),
+            "history_max_images": int(getattr(self, "history_max_images", 5000)),
             "language": getattr(self, "lang", "EN"),
             "calibration_model_sha256": getattr(getattr(self, "classifier", None), "model_sha256", "") or "",
         }
@@ -4488,6 +4617,7 @@ class AgriLensApp:
         if len(short_name) > 26:
             short_name = short_name[:23] + "..."
         self.last_file_short_name = short_name
+        self.last_file_path = filepath
 
         self._show_image(self.captured_frame)
         self._init_crop_selection()
@@ -4637,8 +4767,37 @@ class AgriLensApp:
             self.last_probs = probs
             self.last_raw_out = raw_out
             self.latency_ms = ms
+            self.last_verdict = None
             self._render_diagnosis(probs, raw_out)
             self._update_stats_bar()
+            self._record_history(target_img, (px0, py0, px1, py1), score, rating, ms)
+
+    def _record_history(self, leaf_img, crop_px, quality_score, quality_rating, latency_ms):
+        """Stores the diagnosed leaf image and its record in the diagnosis history (never interrupts the kiosk)."""
+        hist = getattr(self, "history", None)
+        if hist is None or not hist.enabled or not getattr(self, "last_verdict", None):
+            return
+        try:
+            live = self._is_live_mode()
+            frame = self.captured_frame
+            clf = self.classifier
+            meta = dict(self.last_verdict)
+            meta.update({
+                "input_mode": "LIVE" if live else "FILE",
+                "source_file": "" if live else (getattr(self, "last_file_path", "") or getattr(self, "last_file_short_name", "")),
+                "camera": (self.camera.kind if (live and self.camera) else ""),
+                "frame_width": frame.size[0] if frame is not None else None, "frame_height": frame.size[1] if frame is not None else None,
+                "crop_box": "%d,%d,%d,%d" % tuple(crop_px),
+                "quality_score": quality_score, "quality_rating": quality_rating,
+                "gate_source": getattr(self, "gate_source", ""),
+                "app_version": APP_VERSION, "release": OTA_RELEASE_ID, "model_id": MODEL_ID, "model_version": MODEL_VERSION,
+                "model_sha256": getattr(clf, "model_sha256", "") or "", "engine": getattr(clf, "mode", ""),
+                "latency_ms": round(float(latency_ms or 0), 1), "language": getattr(self, "lang", "EN"),
+                "host": platform.node(),
+            })
+            hist.record(leaf_img, meta)
+        except Exception as e:
+            print(f"Notice: diagnosis history skipped ({e})")
 
     def _render_diagnosis(self, probs, raw_out=None):
         is_hi = (getattr(self, "lang", "EN") == "HI")
@@ -4747,6 +4906,26 @@ class AgriLensApp:
             steps = get_recommendation(crop, cond, lang=self.lang)
             num_color = RED_ALERT
             btn_color = RED_ALERT
+
+        # Language-independent summary of this verdict (read by the diagnosis history; the screen text above may be Hindi)
+        order = sorted(range(n), key=lambda i: raw_probs[i], reverse=True)
+        if is_unknown_plant:
+            v_code, v_status = "UNKNOWN", "UNKNOWN PLANT / OUT OF SCOPE"
+        elif is_low_confidence:
+            v_code, v_status = "LOW_CONFIDENCE", "LOW CONFIDENCE - PLEASE RETAKE"
+        elif healthy:
+            v_code, v_status = "HEALTHY", "HEALTHY LEAF - NO DISEASE"
+        else:
+            v_code, v_status = "DISEASE", f"{cond.upper()} DETECTED"
+        self.last_verdict = {
+            "verdict": v_code, "status": v_status, "result": labels[best], "crop": crop, "condition": cond,
+            "confidence_pct": round(conf * 100, 2), "top1_raw_pct": round(raw_top1 * 100, 2), "margin_pct": round(active_margin * 100, 2),
+            "max_logit": round(max_logit, 4) if raw_out is not None else None,
+            "second_label": labels[order[1]] if n > 1 else "", "second_pct": round(raw_probs[order[1]] * 100, 2) if n > 1 else None,
+            "top3": [{"label": labels[i], "pct": round(raw_probs[i] * 100, 2)} for i in order[:3]],
+            "gate_confidence": self.threshold, "gate_margin": self.ood_margin, "gate_ood_logit": self.ood_logit,
+            "selected_crop": self.selected_plant or "AUTO",
+        }
 
         # Update Banner & Texts
         self.banner_frame.config(bg=color)

@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Application | AGRILENS **<!-- agl:version -->5.2.0<!-- /agl:version -->** (published to GitHub `main` on 2026-11-17 and delivered by OTA; Raspberry Pi 5 / Logitech C270 validation pending) |
+| Application | AGRILENS **<!-- agl:version -->5.3.0<!-- /agl:version -->** (published to GitHub `main` on 2026-11-17 and delivered by OTA; Raspberry Pi 5 / Logitech C270 validation pending) |
 | OTA release id | `AGRILENS-5.0.0` |
 | Model | `AGRILENS-MULTICROP` **1.0.0**, MobileNetV4-Conv-Small, single-file ONNX (~10 MB), 24 classes |
 | Dataset | `AGL-MULTICROP-MD` **1.0.0** (frozen master dataset, stored outside the repository) |
