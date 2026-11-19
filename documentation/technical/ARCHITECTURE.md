@@ -6,6 +6,7 @@
 |---|---|---|
 | Application source (authoritative) | `application/main.py` | One self-contained file (Tkinter UI, camera, preprocessing, ONNX inference, gates, Admin, OTA). |
 | Release model | `models/candidates/agrilens-multicrop-1.0.0/` | `agrilens.onnx`, `labels.txt`, `MODEL_MANIFEST.json`. Becomes `models/production/` only after release approval. |
+| Candidate model (not released) | `models/candidates/agrilens-multicrop-1.1.0/` | AGRILENS-MULTICROP 1.1.0: same architecture and classes, own gate calibration (ood_logit 2.90) and comparison with 1.0.0. Not used by the application until a release sets `MODEL_SHA256` and `MODEL_CALIBRATION_*`. |
 | Previous production model | `models/production/agrilens-24class-4.9.4/` | Byte-identical to the 4.9.4 kiosk model. |
 | Model registry | `models/manifests/MODEL_REGISTRY.json` | All models with SHA-256, status and dataset. |
 | Device scripts | `deployment/raspberry_pi/`, `deployment/ota/ota_update.sh` | Sources for the files on the kiosk. |

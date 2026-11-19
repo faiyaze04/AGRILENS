@@ -14,6 +14,20 @@
    "promotion": "move to models/production/ only after release approval"
   },
   {
+   "id": "AGRILENS-MULTICROP 1.1.0",
+   "role": "CANDIDATE, not released and not on any kiosk: webcam-style augmentation + full fine-tuning; same architecture, 24 classes and class order as 1.0.0",
+   "path": "models/candidates/agrilens-multicrop-1.1.0/",
+   "sha256": "0774ca4aadab930086ade370234919a69cf35c8a22844355f78a20a194e0f08e",
+   "bytes": 10067999,
+   "classes": 24,
+   "class_order": "identical to the 1.0.0 / 4.9.4 labels.txt",
+   "dataset": "AGL-MULTICROP-MD 1.0.0",
+   "training_run": "multicrop11_R2w_s42 (selected on validation by SELECTION_RULE; see SELECTION.json in the candidate folder; trained by Model_Trainer_Program)",
+   "gate_calibration": "calibration/FROZEN_GATE_CALIBRATION.json in the candidate folder (confidence 0.40, margin 0.12, ood_logit 2.90)",
+   "comparison_with_1.0.0": "comparison/COMPARISON.md in the candidate folder",
+   "promotion": "a release needs MODEL_SHA256 and the MODEL_CALIBRATION_* values in application/main.py, a rebuilt AGRILENS_RaspberryPi/, Raspberry Pi 5 / C270 checks and owner approval"
+  },
+  {
    "id": "AGRILENS-24CLASS 4.9.4",
    "role": "previous production model (AGRILENS 4.9.4); fleet rollback target via the prepared release AGRILENS-5.0.1-rollback",
    "path": "models/production/agrilens-24class-4.9.4/",

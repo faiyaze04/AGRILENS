@@ -37,6 +37,29 @@ appear in train or val.
 3. Calibrate the rejection gates and run the release evaluation below with the candidate, then decide on a kiosk release. A kiosk only gets
    a new model through a published release (`MODEL_SHA256` in `main.py` and a rebuilt `AGRILENS_RaspberryPi/`).
 
+## Candidate AGRILENS-MULTICROP 1.1.0 (2026-11-19, CR-0007; not released)
+
+Trained overnight on the laptop CPU by the Model Trainer Program (`trainer\run_candidate_1_1_0.ps1`). Same architecture, dataset, 24 classes
+and class order as 1.0.0, so Raspberry Pi speed is unchanged. Three runs: webcam-style augmentation (colour cast, exposure, wash-out, noise,
+low detail, motion blur, stronger JPEG) with full fine-tuning (seeds 42, 43) and with the 1.0.0 recipe R2 (seed 42). Selected on validation:
+`multicrop11_R2w_s42` (validation macro-F1 0.9768 vs 0.9643 for 1.0.0); full fine-tuning scored lower (0.9705, 0.9605).
+
+Files: `models/candidates/agrilens-multicrop-1.1.0/` (SHA-256 `0774ca4a…e0f08e`), with `calibration/FROZEN_GATE_CALIBRATION.json`
+(confidence 0.40, margin 0.12, **ood_logit 2.90**, same rule as 1.0.0) and `comparison/COMPARISON.md`.
+
+Comparison with 1.0.0 through the application's six-view path (`training/evaluation/compare_models.py`, each model with its own gates):
+
+| Set | Measure | 1.0.0 | 1.1.0 |
+|---|---|---|---|
+| test_known_device (3,595) | top-1 accuracy / wrong but accepted | 95.9% / 3.2% | 97.4% / 1.9% |
+| test_heldout_device (325, Mango) | top-1 accuracy / wrong but accepted | 86.8% / 12.0% | 96.9% / 1.9% |
+| simulated C270 captures (3,844) | correct and accepted / rejected unknown | 81.3% / 9.6% | 95.1% / 2.1% |
+| ood_v2 evaluation half (245) | accepted (lower is better) | 35.5% | 33.5% |
+
+Mango Die Back recall (test_known_device) 0.46 → 0.90; Mango Healthy 0.92 → 0.83. The simulated C270 set is related to the candidate's
+training augmentation and favours it. The frozen 1.0.0 release evaluation (run-once lock) was not re-run. Not yet checked: real C270 captures
+and the Raspberry Pi 5. Using 1.1.0 on kiosks needs an application release that sets `MODEL_SHA256` and `MODEL_CALIBRATION_OOD_LOGIT = 2.90`.
+
 ## Selection and calibration (pre-declared)
 
 `SELECTION_RULE.md` (now in `Model_Trainer_Program\trainer\configurations\`) was written before training; selection uses validation only.

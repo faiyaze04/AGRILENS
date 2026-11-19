@@ -99,3 +99,19 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Documentation updated | TRAINING.md, ARCHITECTURE.md, ROLLBACK.md, ENGINEERING_GOVERNANCE.md, README.md, HOW_TO index; new Model_Trainer_Program\README.md. Not edited: release records and manifests that cite the old training/ paths (MODEL_MANIFEST.json, MODEL_REGISTRY.json training_run text, release readiness report, 5.0.0 change logs) and the frozen dataset-card mirror. |
 | Known risks | Model_Trainer_Program is now its own local git repository (allow-list .gitignore: code, configurations, records and run metrics only; 113 files, 0.56 MB); its GitHub repository is not yet created. The pre-move history is in this repository's git history. Four dataset-builder scripts still name the original AgriLens source folders (needed only to rebuild a dataset from sources). On GitHub the moved folders remain until this commit is pushed. |
 | Commit | 774cdd4 |
+
+### CR-0007 — Candidate model AGRILENS-MULTICROP 1.1.0 handed over (not released)
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-19 |
+| Application version | 5.1.0 (unchanged: the candidate is not used by the application; no shipped file changed) |
+| Category | AI/model |
+| Description | Candidate model AGRILENS-MULTICROP 1.1.0 added to models/candidates/agrilens-multicrop-1.1.0/ (SHA-256 0774ca4aadab930086ade370234919a69cf35c8a22844355f78a20a194e0f08e, 24 classes, class order identical to 1.0.0) with its gate calibration (confidence 0.40, margin 0.12, ood_logit 2.90, same rule as 1.0.0), selection record and comparison report; MODEL_REGISTRY entry. Trained overnight by the Model Trainer Program with webcam-style augmentation; three runs, selected on validation: multicrop11_R2w_s42 (validation macro-F1 0.9768 vs 0.9643; full fine-tuning runs 0.9705 and 0.9605). New read-only tool training/evaluation/compare_models.py compares two models through the application's six-view path, each with its own gates. |
+| Reason | Owner request (2026-11-18): a better-trained model for the Raspberry Pi 5 kiosk, trained overnight on the laptop with webcam-style augmentation and full fine-tuning; no new classes. |
+| Files affected | models/candidates/agrilens-multicrop-1.1.0/ (new: agrilens.onnx, labels.txt, MODEL_MANIFEST.json, SELECTION.json, calibration/, comparison/), models/manifests/MODEL_REGISTRY.json, training/evaluation/compare_models.py (new), documentation/technical/TRAINING.md, documentation/technical/ARCHITECTURE.md, this register |
+| Tests executed | compare_models.py on val, a simulated C270 set, test_known_device, test_heldout_device and the ood_v2 evaluation half (application six-view path); hand-over checks (copied model SHA-256 equals its manifest; labels identical to the kiosk labels.txt); python -m pytest -q (pre-commit gate) |
+| Test outcome | 1.0.0 vs 1.1.0: test_known_device top-1 95.9% vs 97.4%, wrong-but-accepted 3.2% vs 1.9%; test_heldout_device top-1 86.8% vs 96.9%, wrong-but-accepted 12.0% vs 1.9%; simulated C270 correct-and-accepted 81.3% vs 95.1%, rejected-unknown 9.6% vs 2.1%; ood_v2 accepted 35.5% vs 33.5%. Mango Die Back recall 0.46 vs 0.90, Mango Healthy 0.92 vs 0.83. Hand-over checks passed. pytest: see the commit gate result. |
+| Documentation updated | TRAINING.md (candidate 1.1.0 section), ARCHITECTURE.md (candidate row). Release notes not changed: nothing is released. |
+| Known risks | Not checked on real Logitech C270 captures or on the Raspberry Pi 5. The simulated C270 set is related to the candidate's training augmentation and favours it. Mango Healthy recall dropped. The frozen 1.0.0 release evaluation (run-once) was not re-run; 1.1.0 has no formal release evaluation yet. A release needs MODEL_SHA256 and MODEL_CALIBRATION_OOD_LOGIT = 2.90 in main.py and owner approval. |
+| Commit | pending |
