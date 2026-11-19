@@ -152,6 +152,9 @@ def test_stored_precedence_matrix_still_matches(app):
         # cam_resolution (added in 5.1.0) is not in the legacy matrix; it takes its default unless a file sets it.
         expected = dict(case["effective"])
         expected.setdefault("cam_resolution", app.DEFAULT_CONFIG["cam_resolution"])
+        # history_enabled / history_max_images (added in 5.3.0) likewise take their defaults.
+        expected.setdefault("history_enabled", app.DEFAULT_CONFIG["history_enabled"])
+        expected.setdefault("history_max_images", app.DEFAULT_CONFIG["history_max_images"])
         assert eff(app, case["app_dir_file"], case["user_file"]) == expected, case["name"]
 
 

@@ -30,6 +30,8 @@ Later sources override earlier ones key by key. Every value is then clamped to i
 | `cam_flip_h`, `cam_flip_v` | false | | Mirror / 180° flip |
 | `cam_auto_exp`, `cam_auto_wb` | true | | UVC auto exposure (with 50 Hz anti-flicker through `v4l2-ctl`) and auto white balance |
 | `cam_resolution` | `1280x720` | `1280x720`, `640x480` | Capture resolution requested from the camera (since 5.1.0). `1280x720` is the Logitech C270 maximum and is requested in MJPG. If the camera delivers no frames in that mode, the kiosk retries the same port at 640×480; the status bar shows the size actually delivered. Any other value falls back to `1280x720`. Set `640x480` to get the 5.0.0 capture behaviour. Not editable in the Admin panel; edit the file and restart the kiosk (or tap **DETECT WEBCAM**). |
+| `history_enabled` | true | true, false | Diagnosis history (since 5.3.0): every DIAGNOSE NOW stores the diagnosed (cropped) leaf image and a record in `~/AGRILENS_history/`. Set `false` to stop recording; existing history is kept. |
+| `history_max_images` | 5000 | 0 to 100000 | Maximum number of stored leaf images; above it the oldest images and their records are deleted (`diagnosis_log.csv` is never trimmed). 0 keeps everything. No image is written while less than 300 MB of disk space is free (the record is still written, with `save_status` saying so). |
 | `language` | `EN` | `EN`, `HI` | Main-screen language |
 
 Legacy migration: if a loaded configuration has `ood_logit` ≥ 1.80 and `confidence_threshold` ≥ 0.48 at the same time, the three thresholds and `sharpness_min` are reset to the code defaults.

@@ -110,6 +110,7 @@ def decide(app, labels, probs, raw_out, profile="code_defaults", selected_plant=
         "button": button,
         "plant_text": fake.plant_lbl.config.call_args.kwargs.get("text", ""),
         "disease_text": fake.disease_lbl.config.call_args.kwargs.get("text", ""),
+        "last_verdict": getattr(fake, "last_verdict", None),   # language-independent summary used by the diagnosis history (5.3.0)
     }
 
 

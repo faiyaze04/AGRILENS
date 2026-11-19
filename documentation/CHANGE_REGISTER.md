@@ -147,3 +147,19 @@ New entries: `python tools/governance/agl_governance.py register new --title "..
 | Documentation updated | ROLLBACK.md. Older register entries and release records that mention Release_Evidence are historical and not edited. |
 | Known risks | The 4.9.4 working-tree-as-found zip (uncommitted state from before 5.0.0) and the 5.0.0 work logs no longer exist outside OneDrive's recycle bin (kept there for about 30 days). |
 | Commit | pending |
+
+### CR-0010 — AGRILENS 5.3.0: diagnosis history (leaf image + record per diagnosis)
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-19 |
+| Application version | 5.3.0 (minor, from 5.2.0: new backward-compatible kiosk functionality and two new configuration keys; model unchanged) |
+| Category | Feature |
+| Description | New DiagnosisHistory in application/main.py: after every DIAGNOSE NOW the diagnosed (cropped) leaf image is stored as ~/AGRILENS_history/YYYY-MM-DD/YYYYMMDD_HHMMSS_mmm_VERDICT.jpg with a JSON record next to it and one row in ~/AGRILENS_history/diagnosis_log.csv (time local/UTC, status, verdict code, result, crop, condition, confidence, top-1, margin, max logit, top-3, input mode and source file, selected crop, crop box, frame size, quality, camera, gates and their source, app/release, model id/version/SHA-256, engine, latency, language, host, save status). _render_diagnosis records a language-independent last_verdict; handle_diagnose writes the history (not the language re-render). Background thread, errors never interrupt the kiosk, max images (oldest deleted, CSV kept), no image below 300 MB free disk. New config keys history_enabled (default true) and history_max_images (default 5000, 0-100000), validated and saved. History lives outside AGRILENS_RaspberryPi/, so OTA and rollback.sh never touch it. Package rebuilt as AGRILENS-5.3.0 (model unchanged); release record written. |
+| Reason | Owner request (2026-11-19): store each captured leaf image with a date-time stamp in a history folder, with a historical log of the diagnosis, its metadata and status. |
+| Files affected | application/main.py, application/configuration/kiosk_config.default.json, AGRILENS_RaspberryPi/ (main.py, kiosk_config.json, HOW_TO_RUN_ON_RASPBERRY_PI.md, RELEASE_MANIFEST.json, SHA256SUMS), deployment/release_manifests/AGRILENS-5.3.0.json, tests/unit/test_history.py (new), tests/regression/test_configuration.py, tools/validation/app_harness.py (decide() also returns last_verdict), deployment/raspberry_pi/HOW_TO_RUN_ON_RASPBERRY_PI.md, README.md, HOW_TO.md, documentation/technical/CONFIGURATION.md, ARCHITECTURE.md, ROLLBACK.md, documentation/release_notes/RELEASE_NOTES_5.3.0.md, tools/governance/governance_rules.json, this register |
+| Tests executed | python -m pytest -q (Windows, kiosk .venv, AGRILENS_HISTORY_DIR set to a temporary folder); end-to-end on the PC: two sample images through the application's classifier, decision code and _record_history; build_device_package.py |
+| Test outcome | 207 passed, 0 failed (15 new history tests). End-to-end: DISEASE and HEALTHY images, JSON records and two CSV rows written with the expected values. Package build passed. Not tested on the Raspberry Pi 5. |
+| Documentation updated | RELEASE_NOTES_5.3.0.md, HOW_TO.md (new section Diagnosis history), device guide (history location, copying, switching off), CONFIGURATION.md (history_enabled, history_max_images), ARCHITECTURE.md, ROLLBACK.md, HOW_TO index. Verified, no change needed: field_validation_protocol_phase_A.md, MODEL_REGISTRY.json (model unchanged). |
+| Known risks | SD-card write speed and folder permissions on the Pi 5 not tested. Images are stored without a size limit per image (crop of up to 1280x720). The kiosk has no screen to browse or delete the history. |
+| Commit | pending |
