@@ -117,6 +117,8 @@ KNOWN_SAMPLE_MISMATCHES = {
     "0b5bb7fb3916a7c1138f90cfc9abfdc130f06495a34282d474e52718b072ff80": {"Tomato_Spider_mites_Two_spotted_spider_mite": "Tomato_Tomato_YellowLeaf_Curl_Virus"},
     # AGRILENS-MULTICROP 1.0.0: 24 of 24 samples top-1 correct (captured 2026-11-17).
     "776d08ac669d0ea8874a458bfb6ea2657c5d40525d30021c7c8c1204d520332b": {},
+    # AGRILENS-MULTICROP 1.1.0 (AGRILENS 5.2.0): 24 of 24 samples top-1 correct (captured 2026-11-19).
+    "0774ca4aadab930086ade370234919a69cf35c8a22844355f78a20a194e0f08e": {},
 }
 
 

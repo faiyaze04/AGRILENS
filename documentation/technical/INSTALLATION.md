@@ -4,8 +4,8 @@
 
 5.0.0 has been on GitHub `main` since 2026-11-17 (`documentation/CHANGE_REGISTER.md`, `CR-0001`). No action on the device. On its next boot (or when **ADMIN → ☁ OTA UPDATE (INTERNET)** is tapped) the kiosk downloads release `AGRILENS-5.0.0` from GitHub `main`, verifies the model SHA-256 and restarts. Check afterwards:
 
-- The tooltip on the AGRILENS brand label (top bar) shows `v5.0.0 (AGRILENS-5.0.0)`, model `AGRILENS-MULTICROP 1.0.0` and dataset `AGL-MULTICROP-MD 1.0.0`.
-- The start-up console line (terminal or `journalctl`) reads `AGRILENS 5.0.0: model ONNX AGRILENS-MULTICROP 1.0.0; rejection gates from calibration of AGRILENS-MULTICROP 1.0.0: ...`.
+- The tooltip on the AGRILENS brand label (top bar) shows the installed version, for example `v5.2.0 (AGRILENS-5.2.0)`, model `AGRILENS-MULTICROP 1.1.0` and dataset `AGL-MULTICROP-MD 1.0.0`.
+- The start-up console line (terminal or `journalctl`) reads, for example, `AGRILENS 5.2.0: model ONNX AGRILENS-MULTICROP 1.1.0; rejection gates from calibration of AGRILENS-MULTICROP 1.1.0: ...`.
 - `sha256sum ~/AGRILENS_RaspberryPi/agrilens.onnx` equals `model_sha256` in `RELEASE_MANIFEST.json`.
 
 Thresholds that an operator saved under 4.9.4 are ignored by 5.0.0 (they were not saved for this model). Re-saving in the Admin Console stores new values tagged with the model's SHA-256.

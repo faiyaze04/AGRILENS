@@ -37,7 +37,7 @@ appear in train or val.
 3. Calibrate the rejection gates and run the release evaluation below with the candidate, then decide on a kiosk release. A kiosk only gets
    a new model through a published release (`MODEL_SHA256` in `main.py` and a rebuilt `AGRILENS_RaspberryPi/`).
 
-## Candidate AGRILENS-MULTICROP 1.1.0 (2026-11-19, CR-0007; not released)
+## AGRILENS-MULTICROP 1.1.0 (2026-11-19, CR-0007; released in AGRILENS 5.2.0, CR-0008)
 
 Trained overnight on the laptop CPU by the Model Trainer Program (`trainer\run_candidate_1_1_0.ps1`). Same architecture, dataset, 24 classes
 and class order as 1.0.0, so Raspberry Pi speed is unchanged. Three runs: webcam-style augmentation (colour cast, exposure, wash-out, noise,
@@ -58,7 +58,7 @@ Comparison with 1.0.0 through the application's six-view path (`training/evaluat
 
 Mango Die Back recall (test_known_device) 0.46 → 0.90; Mango Healthy 0.92 → 0.83. The simulated C270 set is related to the candidate's
 training augmentation and favours it. The frozen 1.0.0 release evaluation (run-once lock) was not re-run. Not yet checked: real C270 captures
-and the Raspberry Pi 5. Using 1.1.0 on kiosks needs an application release that sets `MODEL_SHA256` and `MODEL_CALIBRATION_OOD_LOGIT = 2.90`.
+and the Raspberry Pi 5. AGRILENS 5.2.0 ships it (`MODEL_SHA256`, `MODEL_CALIBRATION_OOD_LOGIT = 2.90`).
 
 ## Selection and calibration (pre-declared)
 

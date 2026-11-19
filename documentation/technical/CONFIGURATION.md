@@ -39,10 +39,10 @@ Legacy migration: if a loaded configuration has `ood_logit` ≥ 1.80 and `confid
 `resolve_gate_thresholds()` picks the thresholds for the model that is actually loaded:
 
 1. Saved thresholds, only if `calibration_model_sha256` equals the SHA-256 of the loaded `agrilens.onnx`.
-2. Otherwise, if the loaded model is the release model (`MODEL_SHA256`), its calibration: confidence 0.40, margin 0.12, ood_logit 2.10 (`MODEL_CALIBRATION_*`, frozen in `training/evaluation/calibration_1.0.0/FROZEN_GATE_CALIBRATION.json`).
+2. Otherwise, if the loaded model is the release model (`MODEL_SHA256`), its calibration (`MODEL_CALIBRATION_*`). Since 5.2.0 (model 1.1.0): confidence 0.40, margin 0.12, ood_logit 2.90, from `models/candidates/agrilens-multicrop-1.1.0/calibration/FROZEN_GATE_CALIBRATION.json`. 5.0.0 and 5.1.0 (model 1.0.0): ood_logit 2.10, from `training/evaluation/calibration_1.0.0/FROZEN_GATE_CALIBRATION.json`. Thresholds saved on a kiosk for the previous model (field `calibration_model_sha256`) are ignored after the model changes, so a kiosk updated to 5.2.0 uses 2.90 even if its Admin slider had been moved; set the slider again if needed.
 3. Otherwise (unrecognised model file) the generic defaults: 0.40, 0.12, 1.40.
 
-So thresholds saved under 4.9.4, for example `ood_logit` 6.0, are not applied to the 5.0.0 model. The start-up console line shows the result, for example `AGRILENS 5.0.0: model ONNX AGRILENS-MULTICROP 1.0.0; rejection gates from calibration of AGRILENS-MULTICROP 1.0.0: confidence 0.40, margin 0.12, logit 2.10`.
+So thresholds saved under 4.9.4, for example `ood_logit` 6.0, are not applied to the 5.0.0 model. The start-up console line shows the result, for example `AGRILENS 5.2.0: model ONNX AGRILENS-MULTICROP 1.1.0; rejection gates from calibration of AGRILENS-MULTICROP 1.1.0: confidence 0.40, margin 0.12, logit 2.9`.
 
 Changing thresholds is a release decision. Do not tune them on test data or on single field reports (`documentation/governance/ENGINEERING_GOVERNANCE.md`, engineering rules).
 

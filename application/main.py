@@ -150,19 +150,19 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "5.1.0"
-BUILD_TIMESTAMP = "2026-11-18 19:24 (development build)"
-MODEL_SHA256 = "776d08ac669d0ea8874a458bfb6ea2657c5d40525d30021c7c8c1204d520332b"
+APP_VERSION = "5.2.0"
+BUILD_TIMESTAMP = "2026-11-19 08:19 (development build)"
+MODEL_SHA256 = "0774ca4aadab930086ade370234919a69cf35c8a22844355f78a20a194e0f08e"
 # Model identity (independent of APP_VERSION). MODEL_SHA256 is verified against the model file by deployment/packaging/build_device_package.py.
 MODEL_ID = "AGRILENS-MULTICROP"
-MODEL_VERSION = "1.0.0"
+MODEL_VERSION = "1.1.0"
 MODEL_NUM_CLASSES = 24
 DATASET_VERSION = "AGL-MULTICROP-MD 1.0.0"
-OTA_RELEASE_ID = "AGRILENS-5.1.0"
+OTA_RELEASE_ID = "AGRILENS-5.2.0"
 # Rejection-gate calibration of the model above, set on validation data only (training/evaluation/). Used only when the loaded model matches MODEL_SHA256.
 MODEL_CALIBRATION_CONFIDENCE = 0.40
 MODEL_CALIBRATION_MARGIN = 0.12
-MODEL_CALIBRATION_OOD_LOGIT = 2.10
+MODEL_CALIBRATION_OOD_LOGIT = 2.90
 OTA_REPO_RAW_BASE = "https://raw.githubusercontent.com/faiyaze04/AGRILENS/main/AGRILENS_RaspberryPi"
 
 
