@@ -13,6 +13,7 @@
 | Device package (generated) | `AGRILENS_RaspberryPi/` | Built by `deployment/packaging/build_device_package.py`; never edited by hand. |
 | Model trainer (separate program) | `<AGRILENS_5.0.0>\Model_Trainer_Program\trainer\` | Not part of this repository and never on a kiosk. Trains, exports and checks models on a PC; a finished model is handed over by copying its export folder to `models/candidates/<model-id>/`. See `documentation/technical/TRAINING.md`. |
 | Diagnosis history (on the kiosk) | `~/AGRILENS_history/` | Written by `DiagnosisHistory` in `main.py` (since 5.3.0) on a background thread after each diagnosis: leaf image + JSON record per diagnosis, `diagnosis_log.csv`. Outside `AGRILENS_RaspberryPi/`, so OTA and rollback never change it. |
+| Diagnosis history upload | rclone remote `agrilens_onedrive` → OneDrive folder `history_sync_path` | `HistorySync` in `main.py` (since 5.4.0): background thread, every 30 minutes, internet probe first, `rclone copy` (never deletes in OneDrive). The OneDrive sign-in is rclone's (`~/.config/rclone/rclone.conf`), not the application's. |
 | Master dataset | `<AGRILENS_5.0.0>\Model_Trainer_Program\datasets\AGL-MULTICROP-MD\AGL-MULTICROP-MD-1.0.0` | Outside git (images), with the trainer. Manifests and card mirrored in `datasets/master/AGL-MULTICROP-MD/`. |
 | Model evaluation and release evidence | `training/evaluation/`, `training/reports/` | Stay in this repository: gate calibration and release evaluation run the kiosk's own `main.py`, and the release tooling reads the frozen results. |
 

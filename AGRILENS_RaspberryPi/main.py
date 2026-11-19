@@ -150,15 +150,15 @@ WHITE_BTN   = "#ffffff"     # High-contrast white buttons
 FONT = "Segoe UI" if platform.system() == "Windows" else "DejaVu Sans"
 
 # Application Version & Build Information
-APP_VERSION = "5.3.0"
-BUILD_TIMESTAMP = "2026-11-19 15:02 (development build)"
+APP_VERSION = "5.4.0"
+BUILD_TIMESTAMP = "2026-11-19 15:41 (development build)"
 MODEL_SHA256 = "0774ca4aadab930086ade370234919a69cf35c8a22844355f78a20a194e0f08e"
 # Model identity (independent of APP_VERSION). MODEL_SHA256 is verified against the model file by deployment/packaging/build_device_package.py.
 MODEL_ID = "AGRILENS-MULTICROP"
 MODEL_VERSION = "1.1.0"
 MODEL_NUM_CLASSES = 24
 DATASET_VERSION = "AGL-MULTICROP-MD 1.0.0"
-OTA_RELEASE_ID = "AGRILENS-5.3.0"
+OTA_RELEASE_ID = "AGRILENS-5.4.0"
 # Rejection-gate calibration of the model above, set on validation data only (training/evaluation/). Used only when the loaded model matches MODEL_SHA256.
 MODEL_CALIBRATION_CONFIDENCE = 0.40
 MODEL_CALIBRATION_MARGIN = 0.12
@@ -290,8 +290,16 @@ DEFAULT_CONFIG = {
     "cam_resolution": "1280x720",
     "history_enabled": True,
     "history_max_images": 5000,
+    "history_sync_enabled": True,
+    "history_sync_remote": "agrilens_onedrive",
+    "history_sync_path": "AGRILENS_Kiosk_History",
+    "history_sync_minutes": 30,
     "language": "EN",
 }
+# OneDrive upload of the diagnosis history (since 5.4.0) through rclone. The kiosk only calls "rclone copy"; the OneDrive sign-in lives in
+# rclone's own configuration (~/.config/rclone/rclone.conf), never in this application. Nothing happens until that remote exists.
+HISTORY_SYNC_LOG = os.path.expanduser("~/AGRILENS_history_sync.log")
+HISTORY_SYNC_FIRST_DELAY_S = 120   # first upload attempt after kiosk start
 # Diagnosis history (since 5.3.0): every DIAGNOSE NOW stores the diagnosed (cropped) leaf image and a log record outside the
 # application folder, so OTA updates and rollbacks never touch it. AGRILENS_HISTORY_DIR overrides the location (tests).
 HISTORY_DIR = os.environ.get("AGRILENS_HISTORY_DIR") or os.path.expanduser("~/AGRILENS_history")
@@ -398,6 +406,13 @@ def load_kiosk_config():
     hv = cfg.get("history_enabled", True)
     cfg["history_enabled"] = hv if isinstance(hv, bool) else True
     cfg["history_max_images"] = _clamp_num(cfg.get("history_max_images"), 5000, 0, 100000, as_int=True)
+    sv = cfg.get("history_sync_enabled", True)
+    cfg["history_sync_enabled"] = sv if isinstance(sv, bool) else True
+    rem = str(cfg.get("history_sync_remote") or "").strip().rstrip(":")
+    cfg["history_sync_remote"] = rem if rem and all(ch.isalnum() or ch in "_-." for ch in rem) else DEFAULT_CONFIG["history_sync_remote"]
+    sp = str(cfg.get("history_sync_path") or "").replace("\\", "/").strip().strip("/")
+    cfg["history_sync_path"] = sp if (sp and ".." not in sp.split("/") and not sp.startswith("-")) else DEFAULT_CONFIG["history_sync_path"]
+    cfg["history_sync_minutes"] = _clamp_num(cfg.get("history_sync_minutes"), 30, 5, 1440, as_int=True)
     cfg["language"] = "HI" if str(cfg.get("language", "EN")).upper() == "HI" else "EN"
     return cfg
 
@@ -957,6 +972,109 @@ class DiagnosisHistory:
                     pass
         except Exception as e:
             print(f"Notice: diagnosis history pruning skipped ({e})")
+
+
+class HistorySync:
+    """
+    Uploads the diagnosis history to OneDrive with rclone ("rclone copy": new and changed files only; nothing is ever deleted in the
+    cloud, so images pruned on the kiosk stay in OneDrive). Runs in a background thread: first attempt HISTORY_SYNC_FIRST_DELAY_S after
+    start, then every `minutes`. Each attempt first checks that the internet (Microsoft Graph) is reachable; offline attempts are skipped
+    quietly and the next one catches up. Does nothing until rclone is installed and the remote `remote` exists in rclone's configuration.
+    One line per attempt goes to HISTORY_SYNC_LOG (trimmed to the last 1000 lines).
+    """
+    PROBE_HOST, PROBE_PORT = "graph.microsoft.com", 443
+
+    def __init__(self, src_dir=None, remote="agrilens_onedrive", dest_path="AGRILENS_Kiosk_History", minutes=30, enabled=True, log_path=None):
+        self.src_dir = src_dir or HISTORY_DIR
+        self.remote = str(remote).rstrip(":")
+        self.dest_path = str(dest_path).strip("/")
+        self.minutes = max(5, int(minutes or 30))
+        self.enabled = bool(enabled)
+        self.log_path = log_path or HISTORY_SYNC_LOG
+        self.status = "not started"
+        self.last_success = ""
+        self._busy = threading.Lock()
+        self._stop = threading.Event()
+
+    def target(self):
+        return f"{self.remote}:{self.dest_path}"
+
+    def command(self, rclone="rclone"):
+        return [rclone, "copy", self.src_dir, self.target(), "--min-age", "20s", "--transfers", "2", "--checkers", "4",
+                "--retries", "3", "--low-level-retries", "5", "--contimeout", "15s", "--timeout", "60s", "--exclude", ".*", "--stats-one-line", "-q"]
+
+    def _online(self):
+        import socket
+        try:
+            with socket.create_connection((self.PROBE_HOST, self.PROBE_PORT), timeout=5):
+                return True
+        except OSError:
+            return False
+
+    def _log(self, msg):
+        line = time.strftime("%Y-%m-%d %H:%M:%S") + "  " + msg
+        try:
+            lines = []
+            if os.path.exists(self.log_path):
+                with open(self.log_path, encoding="utf-8", errors="replace") as f:
+                    lines = f.read().splitlines()[-999:]
+            lines.append(line)
+            with open(self.log_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+        except Exception:
+            pass
+
+    def run_once(self):
+        """One upload attempt. Returns a short status string (also stored in self.status and logged)."""
+        if not self.enabled:
+            return "disabled"
+        if not self._busy.acquire(blocking=False):
+            return "busy"
+        try:
+            import shutil as _sh
+            rc = _sh.which("rclone")
+            if not rc:
+                st = "rclone not installed"
+            elif not os.path.isdir(self.src_dir):
+                st = "no history yet"
+            else:
+                rem = subprocess.run([rc, "listremotes"], capture_output=True, text=True, timeout=30)
+                if (self.remote + ":") not in rem.stdout.split():
+                    st = f"remote '{self.remote}' not configured"
+                elif not self._online():
+                    st = "offline (skipped)"
+                else:
+                    t0 = time.time()
+                    r = subprocess.run(self.command(rc), capture_output=True, text=True, timeout=1800)
+                    if r.returncode == 0:
+                        self.last_success = time.strftime("%Y-%m-%d %H:%M:%S")
+                        st = f"uploaded to {self.target()} in {time.time() - t0:.0f} s"
+                    else:
+                        err = (r.stderr or r.stdout or "").strip().splitlines()
+                        st = f"rclone failed (exit {r.returncode}): {err[-1][:200] if err else 'no message'}"
+        except Exception as e:
+            st = f"error: {e}"
+        finally:
+            self._busy.release()
+        self.status = st
+        self._log(st)
+        return st
+
+    def start(self):
+        if not self.enabled:
+            return
+
+        def loop():
+            if self._stop.wait(HISTORY_SYNC_FIRST_DELAY_S):
+                return
+            while not self._stop.is_set():
+                self.run_once()
+                if self._stop.wait(self.minutes * 60):
+                    return
+        threading.Thread(target=loop, daemon=True).start()
+
+    def stop(self):
+        self._stop.set()
 
 
 # =============================================================================
@@ -1980,6 +2098,10 @@ class AgriLensApp:
         self.history_enabled = bool(cfg.get("history_enabled", True))
         self.history_max_images = int(cfg.get("history_max_images", 5000))
         self.history = DiagnosisHistory(HISTORY_DIR, enabled=self.history_enabled, max_images=self.history_max_images)
+        self.history_sync_cfg = {k: cfg.get(k, DEFAULT_CONFIG[k]) for k in ("history_sync_enabled", "history_sync_remote", "history_sync_path", "history_sync_minutes")}
+        self.history_sync = HistorySync(HISTORY_DIR, remote=self.history_sync_cfg["history_sync_remote"], dest_path=self.history_sync_cfg["history_sync_path"],
+                                        minutes=self.history_sync_cfg["history_sync_minutes"], enabled=bool(self.history_sync_cfg["history_sync_enabled"]))
+        self.history_sync.start()
         self.input_mode = "LIVE"  # Default: "LIVE" (if camera connected), auto-falls back to "FILE" if no camera
         self.startup_splash_active = True
         self.startup_start_ts = time.monotonic()
@@ -3700,6 +3822,7 @@ class AgriLensApp:
             "cam_resolution": "%dx%d" % tuple(self.camera.resolution),
             "history_enabled": bool(getattr(self, "history_enabled", True)),
             "history_max_images": int(getattr(self, "history_max_images", 5000)),
+            **{k: v for k, v in (getattr(self, "history_sync_cfg", None) or {k2: DEFAULT_CONFIG[k2] for k2 in ("history_sync_enabled", "history_sync_remote", "history_sync_path", "history_sync_minutes")}).items()},
             "language": getattr(self, "lang", "EN"),
             "calibration_model_sha256": getattr(getattr(self, "classifier", None), "model_sha256", "") or "",
         }
@@ -4985,6 +5108,11 @@ class AgriLensApp:
 
     def close(self):
         self.running = False
+        try:
+            if getattr(self, "history_sync", None):
+                self.history_sync.stop()
+        except Exception:
+            pass
         try:
             self._sync_sliders_to_attributes()
             self._save_current_settings()

@@ -13,7 +13,7 @@ Every updater (4.9.x and 5.0.0) refuses to install an `APP_VERSION` that is lowe
 
 **After 5.1.0 is published:** kiosks on 5.1.0 refuse 5.0.1 as a downgrade, so `AGRILENS-5.0.1-rollback` only reaches kiosks still on 5.0.0. A fleet rollback of 5.1.0 needs a new release numbered above 5.1.0 (for example 5.1.1 built from the 5.0.0 sources, or 5.1.1 with `cam_resolution` defaulting to `640x480`). A single kiosk can return to 5.0.0 with `rollback.sh`, because the 5.0.0 updater keeps `rollback/v5.0.0/` when it installs 5.1.0. To return one kiosk to 640×480 capture without any rollback, set `"cam_resolution": "640x480"` in `~/.agrilens_kiosk_config.json`.
 
-The diagnosis history in `~/AGRILENS_history/` (5.3.0 and later) is outside the application folder: neither OTA updates nor `rollback.sh` change or delete it. A version before 5.3.0 simply stops adding to it.
+The diagnosis history in `~/AGRILENS_history/` (5.3.0 and later) is outside the application folder: neither OTA updates nor `rollback.sh` change or delete it. A version before 5.3.0 simply stops adding to it. The OneDrive upload (5.4.0 and later) is part of the application: after a rollback to 5.3.0 the uploads stop, the files already in OneDrive stay there, and the rclone sign-in on the Pi is not removed (delete it with `rclone config delete agrilens_onedrive` if wanted).
 
 ## Single-device rollback
 

@@ -27,6 +27,8 @@ python3 test_deps.py
 
 Detailed device guide (Thonny, autostart, camera panel, troubleshooting): `HOW_TO_RUN_ON_RASPBERRY_PI.md` in the same folder.
 
+Optional (5.4.0 and later): to upload the diagnosis history to OneDrive, install rclone (`sudo apt install -y rclone`), create the rclone remote `agrilens_onedrive` and set `history_sync_path`; step by step in the device guide, section "Diagnosis history upload to OneDrive". Without this the kiosk works normally and keeps the history only on the Pi.
+
 ## C. Windows / Linux PC
 
 ```bash
